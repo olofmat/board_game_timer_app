@@ -15,12 +15,77 @@ body {
 }
 
 #app {
-  min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+/* Player area: fills the screen while there are no Shared timers. */
+.player-area {
+  position: relative;
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
   padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
-  box-sizing: border-box;
+  background: var(--player-fill, var(--bg));
+  color: var(--player-text, var(--fg));
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  overflow: hidden;
+}
+
+.current-name {
+  font-size: clamp(2.5rem, 14vw, 6rem);
+  font-weight: 700;
   text-align: center;
+  overflow-wrap: anywhere;
+  padding: 0 2.5rem;
+}
+
+/* Activation delay: shown dimmed until the Handover. */
+.player-area[data-state="activating"] {
+  filter: brightness(0.55);
+}
+
+.neighbour {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 22%;
+  font-size: 1.1rem;
+  opacity: 0.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.neighbour--previous {
+  left: 12px;
+}
+
+.neighbour--next {
+  right: 12px;
+  text-align: right;
+}
+
+.paused-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 18vh;
+  background: rgb(0 0 0 / 0.45);
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  pointer-events: none;
+}
+
+.player-area[data-state="paused"] .paused-overlay {
+  display: flex;
 }
