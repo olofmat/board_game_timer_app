@@ -1,5 +1,5 @@
 import { colorStyle } from "../game/colors";
-import { type GameState, snapshot, swipe, type SwipeDirection, tap } from "../game/engine";
+import { type GameState, pressSharedTimer, snapshot, swipe, type SwipeDirection, tap } from "../game/engine";
 
 /** Minimum horizontal travel (px) for a gesture to count as a swipe. */
 const SWIPE_MIN_PX = 50;
@@ -19,7 +19,8 @@ function classify(dx: number, dy: number): Gesture {
 
 /**
  * The Game screen: renders engine snapshots and turns gestures in the
- * Player area into engine commands. Holds no game rules.
+ * Player area and Shared timer presses into engine commands. Holds no
+ * game rules.
  */
 export function mountGameScreen(root: HTMLElement, initial: GameState, clock: () => number = Date.now) {
   let game = initial;
@@ -36,7 +37,30 @@ export function mountGameScreen(root: HTMLElement, initial: GameState, clock: ()
   paused.className = "paused-overlay";
   paused.textContent = "PAUSED";
   area.append(previous, name, next, paused);
-  root.replaceChildren(area);
+
+  // Shared timer buttons in the top quarter; with none, the Player area fills the screen.
+  const sharedTimerNames = snapshot(game, clock()).sharedTimers.map((t) => t.name);
+  const sharedTimerBar = document.createElement("div");
+  sharedTimerBar.className = "shared-timers";
+  sharedTimerBar.dataset.count = String(sharedTimerNames.length);
+  const sharedTimerButtons = sharedTimerNames.map((sharedTimerName, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "shared-timer";
+    button.textContent = sharedTimerName;
+    button.addEventListener("click", () => {
+      game = pressSharedTimer(game, index, clock());
+      render();
+    });
+    return button;
+  });
+  sharedTimerBar.append(...sharedTimerButtons);
+
+  const screen = document.createElement("div");
+  screen.className = "game-screen";
+  if (sharedTimerButtons.length > 0) screen.append(sharedTimerBar);
+  screen.append(area);
+  root.replaceChildren(screen);
 
   let start: { id: number; x: number; y: number } | null = null;
   area.addEventListener("pointerdown", (e) => {
@@ -64,6 +88,11 @@ export function mountGameScreen(root: HTMLElement, initial: GameState, clock: ()
     name.textContent = snap.currentPlayer.name;
     previous.textContent = snap.previousName;
     next.textContent = snap.nextName;
+    sharedTimerButtons.forEach((button, i) => {
+      const running = snap.runningSharedTimer === i;
+      button.classList.toggle("shared-timer--running", running);
+      button.setAttribute("aria-pressed", String(running));
+    });
   }
 
   // The engine resolves the Handover lazily, so re-render every frame.

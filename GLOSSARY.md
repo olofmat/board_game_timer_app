@@ -13,7 +13,7 @@ A person taking turns in a Game. Each Player has a name and a Color, both unique
 _Avoid_: User, participant
 
 **Shared timer**:
-A clock for common time that belongs to no Player, such as "fight" or "buying". A Game has 0–4 of them.
+A clock for common time that belongs to no Player, such as "fight" or "buying". A Game has 0–4 of them, with names unique within the Game (ignoring case). While one runs, the Current player is the interrupted Player that play returns to.
 _Avoid_: Activity, segment, user
 
 **Saved name**:

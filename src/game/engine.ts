@@ -13,11 +13,18 @@ export const ACTIVATION_DELAY_MS = 300;
 /** Swipe right moves to the next Player in the Turn order, left to the previous one. */
 export type SwipeDirection = "right" | "left";
 
-export type RunState = "paused" | "running" | "activating";
+/** "shared-timer": a Shared timer runs while the Current player (the interrupted Player) waits. */
+export type RunState = "paused" | "running" | "activating" | "shared-timer";
 
 export interface PlayerSetup {
   name: string;
   color: ColorName;
+}
+
+/** Everything needed to create a Game: Players in starting Turn order and Shared timer names. */
+export interface GameSetup {
+  players: PlayerSetup[];
+  sharedTimers: string[];
 }
 
 export interface PlayerTimes extends PlayerSetup {
@@ -25,8 +32,23 @@ export interface PlayerTimes extends PlayerSetup {
   turns: number;
 }
 
+export interface SharedTimerTimes {
+  name: string;
+  timeMs: number;
+}
+
+export interface SharedTimerSnapshot extends SharedTimerTimes {
+  /** Time since this Shared timer was last started (0 unless it is running). */
+  stretchMs: number;
+}
+
 export interface GameState {
   players: PlayerTimes[];
+  sharedTimers: SharedTimerTimes[];
+  /** Index of the running Shared timer; null unless mode is "shared-timer". */
+  runningSharedTimer: number | null;
+  /** Credited time since the running Shared timer was started. */
+  stretchMs: number;
   currentIndex: number;
   mode: RunState;
   /** When the current mode started; time since then is not yet credited. */
@@ -47,6 +69,9 @@ export interface Snapshot {
   previousName: string;
   nextName: string;
   players: PlayerTimes[];
+  sharedTimers: SharedTimerSnapshot[];
+  /** Index of the running Shared timer, or null. */
+  runningSharedTimer: number | null;
   /** Time in the Current player's ongoing Turn (0 if they have none). */
   currentTurnMs: number;
   swipingMs: number;
@@ -56,17 +81,30 @@ export interface Snapshot {
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 10;
+export const MAX_SHARED_TIMERS = 4;
 
 /** Why a Game can't be created from this setup. */
-export type SetupProblem = "too-few-players" | "too-many-players" | "duplicate-color" | "duplicate-name";
+export type SetupProblem =
+  | "too-few-players"
+  | "too-many-players"
+  | "duplicate-color"
+  | "duplicate-name"
+  | "too-many-shared-timers"
+  | "duplicate-shared-timer-name";
 
 /** Check a setup before creating a Game from it; null means it is valid. */
-export function setupProblem(players: PlayerSetup[]): SetupProblem | null {
+export function setupProblem({ players, sharedTimers }: GameSetup): SetupProblem | null {
   if (players.length < MIN_PLAYERS) return "too-few-players";
   if (players.length > MAX_PLAYERS) return "too-many-players";
   if (new Set(players.map((p) => p.color)).size < players.length) return "duplicate-color";
-  if (new Set(players.map((p) => p.name.toLowerCase())).size < players.length) return "duplicate-name";
+  if (hasDuplicateName(players.map((p) => p.name))) return "duplicate-name";
+  if (sharedTimers.length > MAX_SHARED_TIMERS) return "too-many-shared-timers";
+  if (hasDuplicateName(sharedTimers)) return "duplicate-shared-timer-name";
   return null;
+}
+
+function hasDuplicateName(names: string[]): boolean {
+  return new Set(names.map((n) => n.toLowerCase())).size < names.length;
 }
 
 /** Whether a Player with this name (ignoring case) is already in the setup. */
@@ -79,6 +117,16 @@ export function canAddPlayer(players: PlayerSetup[]): boolean {
   return players.length < MAX_PLAYERS;
 }
 
+/** Whether a Shared timer with this name (ignoring case) is already in the setup. */
+export function hasSharedTimerNamed(sharedTimers: string[], name: string): boolean {
+  return sharedTimers.some((t) => t.toLowerCase() === name.toLowerCase());
+}
+
+/** Whether another Shared timer can join this setup. */
+export function canAddSharedTimer(sharedTimers: string[]): boolean {
+  return sharedTimers.length < MAX_SHARED_TIMERS;
+}
+
 /**
  * Colors no other Player in the setup has taken, in palette order. With
  * `forIndex`, that Player's own Color counts as available.
@@ -89,11 +137,14 @@ export function availableColors(players: PlayerSetup[], forIndex?: number): Colo
 }
 
 /** Create a Game from a valid setup, opening paused on the first Player. Throws on an invalid setup. */
-export function createGame(players: PlayerSetup[], now: number): GameState {
-  const problem = setupProblem(players);
+export function createGame(setup: GameSetup, now: number): GameState {
+  const problem = setupProblem(setup);
   if (problem) throw new Error(`Invalid Game setup: ${problem}`);
   return {
-    players: players.map(({ name, color }) => ({ name, color, timeMs: 0, turns: 0 })),
+    players: setup.players.map(({ name, color }) => ({ name, color, timeMs: 0, turns: 0 })),
+    sharedTimers: setup.sharedTimers.map((name) => ({ name, timeMs: 0 })),
+    runningSharedTimer: null,
+    stretchMs: 0,
     currentIndex: 0,
     mode: "paused",
     since: now,
@@ -106,22 +157,24 @@ export function createGame(players: PlayerSetup[], now: number): GameState {
 }
 
 /**
- * Tap in the Player area: pause, or resume the Current player.
+ * Tap in the Player area: pause, or resume the Current player. During a
+ * Shared timer it returns to the interrupted Player at once, as a new Turn.
  * Tapping during an Activation delay pauses on the new Current player
  * before their Handover, so they gain no time or Turn yet.
  */
 export function tap(game: GameState, now: number): GameState {
   const settled = credit(game, now);
-  if (settled.mode === "paused") return startClock(settled);
+  if (settled.mode === "paused" || settled.mode === "shared-timer") return startClock(settled);
   return { ...settled, mode: "paused", handoverAt: null };
 }
 
 /**
  * Swipe in the Player area: stop whatever runs and make the neighbouring
- * Player current, with their clock starting at the Handover.
+ * Player current, with their clock starting at the Handover. During a
+ * Shared timer the neighbours are those of the interrupted Player.
  */
 export function swipe(game: GameState, direction: SwipeDirection, now: number): GameState {
-  const settled = credit(game, now);
+  const settled = stopSharedTimer(credit(game, now));
   return {
     ...settled,
     mode: "activating",
@@ -130,22 +183,47 @@ export function swipe(game: GameState, direction: SwipeDirection, now: number): 
   };
 }
 
+/**
+ * Press a Shared timer button: stop whatever runs at once, with no
+ * Activation delay, and start that Shared timer. The Current player
+ * stays current as the interrupted Player. Pressing the running Shared
+ * timer again returns to that Player, like a tap.
+ */
+export function pressSharedTimer(game: GameState, index: number, now: number): GameState {
+  const settled = credit(game, now);
+  if (settled.mode === "shared-timer" && settled.runningSharedTimer === index) return startClock(settled);
+  return {
+    ...settled,
+    mode: "shared-timer",
+    handoverAt: null,
+    runningSharedTimer: index,
+    stretchMs: 0,
+    // Returning to any Player from a Shared timer starts a new Turn.
+    turnPlayerIndex: null,
+  };
+}
+
 export function snapshot(game: GameState, now: number): Snapshot {
   const settled = credit(game, now);
   const playerAt = (offset: number) => settled.players[turnOrderIndex(settled, offset)];
   const current = playerAt(0);
   const playersMs = settled.players.reduce((sum, p) => sum + p.timeMs, 0);
+  const sharedMs = settled.sharedTimers.reduce((sum, t) => sum + t.timeMs, 0);
   return {
     currentPlayer: { name: current.name, color: current.color },
     state: settled.mode,
     previousName: playerAt(-1).name,
     nextName: playerAt(1).name,
     players: settled.players.map((p) => ({ ...p })),
+    sharedTimers: settled.sharedTimers.map((t, i) => ({
+      ...t,
+      stretchMs: i === settled.runningSharedTimer ? settled.stretchMs : 0,
+    })),
+    runningSharedTimer: settled.runningSharedTimer,
     currentTurnMs: settled.turnPlayerIndex === settled.currentIndex ? settled.turnMs : 0,
     swipingMs: settled.swipingMs,
     pausedMs: settled.pausedMs,
-    // Shared timers will add to Game time once they exist.
-    gameMs: playersMs + settled.swipingMs,
+    gameMs: playersMs + sharedMs + settled.swipingMs,
   };
 }
 
@@ -172,18 +250,31 @@ function credit(game: GameState, now: number): GameState {
         since: now,
         turnMs: game.turnMs + elapsed,
       };
+    case "shared-timer":
+      return {
+        ...game,
+        sharedTimers: game.sharedTimers.map((t, i) =>
+          i === game.runningSharedTimer ? { ...t, timeMs: t.timeMs + elapsed } : t,
+        ),
+        since: now,
+        stretchMs: game.stretchMs + elapsed,
+      };
   }
 }
 
 /** Start the Current player's clock; a new Turn unless their Turn was the last one running. */
 function startClock(game: GameState): GameState {
-  if (game.turnPlayerIndex === game.currentIndex) return { ...game, mode: "running" };
+  const running = { ...stopSharedTimer(game), mode: "running" as const };
+  if (game.turnPlayerIndex === game.currentIndex) return running;
   return {
-    ...updateCurrentPlayer(game, (p) => ({ ...p, turns: p.turns + 1 })),
-    mode: "running",
+    ...updateCurrentPlayer(running, (p) => ({ ...p, turns: p.turns + 1 })),
     turnPlayerIndex: game.currentIndex,
     turnMs: 0,
   };
+}
+
+function stopSharedTimer(game: GameState): GameState {
+  return { ...game, runningSharedTimer: null, stretchMs: 0 };
 }
 
 /** Index of the Player `offset` steps from the Current player, cycling through the Turn order. */

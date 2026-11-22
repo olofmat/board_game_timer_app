@@ -15,7 +15,7 @@ function showHome() {
 function showSetup() {
   mountSetupScreen(root, {
     onBack: showHome,
-    onStart: (players) => mountGameScreen(root, createGame(players, Date.now())),
+    onStart: (setup) => mountGameScreen(root, createGame(setup, Date.now())),
   });
 }
 

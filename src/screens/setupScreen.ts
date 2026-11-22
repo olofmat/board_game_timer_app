@@ -2,14 +2,18 @@ import { COLORS, type ColorName, colorStyle } from "../game/colors";
 import {
   availableColors,
   canAddPlayer,
+  canAddSharedTimer,
+  type GameSetup,
   hasPlayerNamed,
+  hasSharedTimerNamed,
   MAX_PLAYERS,
+  MAX_SHARED_TIMERS,
   MIN_PLAYERS,
   type PlayerSetup,
   type SetupProblem,
   setupProblem,
 } from "../game/engine";
-import { deleteSavedPlayerName, loadSavedPlayerNames, savePlayerName } from "../storage/savedNames";
+import { type SavedNameList, savedPlayerNames, savedSharedTimerNames } from "../storage/savedNames";
 
 const COLOR_NAMES = Object.keys(COLORS) as ColorName[];
 
@@ -18,6 +22,8 @@ const PROBLEM_HINTS: Record<SetupProblem, string> = {
   "too-many-players": `A Game has at most ${MAX_PLAYERS} Players.`,
   "duplicate-color": "Each Player needs a different Color.",
   "duplicate-name": "Each Player needs a different name.",
+  "too-many-shared-timers": `A Game has at most ${MAX_SHARED_TIMERS} Shared timers.`,
+  "duplicate-shared-timer-name": "Each Shared timer needs a different name.",
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) {
@@ -28,19 +34,100 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
 }
 
 /**
+ * Add-by-name controls shared by Players and Shared timers: a text field
+ * with a "save" checkbox (off by default) and the Saved names not yet in
+ * the Game, each pickable or deletable.
+ */
+function namePicker(options: {
+  placeholder: string;
+  saved: SavedNameList;
+  /** Whether this name is already in the Game. */
+  isInGame: (name: string) => boolean;
+  /** Whether the Game has room for one more. */
+  hasRoom: () => boolean;
+  onAdd: (name: string) => void;
+}) {
+  let savedNames = options.saved.load();
+  const canAdd = (name: string) => name !== "" && !options.isInGame(name) && options.hasRoom();
+
+  const form = el("form", "add-name");
+  const input = el("input");
+  input.type = "text";
+  input.placeholder = options.placeholder;
+  input.autocomplete = "off";
+  input.maxLength = 24;
+  const saveLabel = el("label", "save-toggle");
+  const saveBox = el("input");
+  saveBox.type = "checkbox";
+  saveLabel.append(saveBox, " save");
+  const addButton = el("button", "secondary-button", "Add");
+  addButton.type = "submit";
+  form.append(input, saveLabel, addButton);
+
+  const savedHeading = el("h3", undefined, "Saved names");
+  const savedList = el("ul", "saved-names");
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = input.value.trim();
+    if (!canAdd(name)) return;
+    if (saveBox.checked) savedNames = options.saved.save(name);
+    input.value = "";
+    saveBox.checked = false;
+    options.onAdd(name);
+  });
+  input.addEventListener("input", updateAddButton);
+
+  function updateAddButton() {
+    addButton.disabled = !canAdd(input.value.trim());
+  }
+
+  function render() {
+    const available = savedNames.filter((n) => !options.isInGame(n));
+    savedHeading.hidden = available.length === 0;
+    savedList.replaceChildren(
+      ...available.map((name) => {
+        const item = el("li", "saved-name");
+        const pick = el("button", "saved-name__pick", name);
+        pick.type = "button";
+        pick.disabled = !options.hasRoom();
+        pick.addEventListener("click", () => {
+          if (canAdd(name)) options.onAdd(name);
+        });
+        const del = el("button", "icon-button", "×");
+        del.type = "button";
+        del.setAttribute("aria-label", `Delete saved name ${name}`);
+        del.addEventListener("click", () => {
+          if (!confirm(`Delete saved name "${name}"?`)) return;
+          savedNames = options.saved.delete(name);
+          render();
+        });
+        item.append(pick, del);
+        return item;
+      }),
+    );
+    updateAddButton();
+  }
+
+  return { elements: [form, savedHeading, savedList], render };
+}
+
+/**
  * New game screen: pick Players from Saved names or type new ones (Guests
  * unless "save" is ticked), give each a Color, drag to set the starting
- * Turn order, then Start. Game rules (2–10 Players, unique Colors) come
- * from the engine's setup check.
+ * Turn order, add 0–4 Shared timers the same way, then Start. Game rules
+ * (2–10 Players, unique Colors, at most 4 Shared timers) come from the
+ * engine's setup check.
  */
 export function mountSetupScreen(
   root: HTMLElement,
-  handlers: { onStart: (players: PlayerSetup[]) => void; onBack: () => void },
+  handlers: { onStart: (setup: GameSetup) => void; onBack: () => void },
 ) {
   let players: PlayerSetup[] = [];
-  let savedNames = loadSavedPlayerNames();
+  let sharedTimers: string[] = [];
   /** Index of the Player whose Color palette is open, if any. */
   let paletteFor: number | null = null;
+  const setup = (): GameSetup => ({ players, sharedTimers });
 
   const screen = el("main", "setup-screen");
   const header = el("header", "setup-header");
@@ -50,55 +137,52 @@ export function mountSetupScreen(
 
   const playersHeading = el("h2");
   const playerList = el("ol", "player-list");
+  const playerPicker = namePicker({
+    placeholder: "New Player name",
+    saved: savedPlayerNames,
+    isInGame: (name) => hasPlayerNamed(players, name),
+    hasRoom: () => canAddPlayer(players),
+    onAdd: addPlayer,
+  });
 
-  const addForm = el("form", "add-player");
-  const nameInput = el("input");
-  nameInput.type = "text";
-  nameInput.placeholder = "New Player name";
-  nameInput.autocomplete = "off";
-  nameInput.maxLength = 24;
-  const saveLabel = el("label", "save-toggle");
-  const saveBox = el("input");
-  saveBox.type = "checkbox";
-  saveLabel.append(saveBox, " save");
-  const addButton = el("button", "secondary-button", "Add");
-  addButton.type = "submit";
-  addForm.append(nameInput, saveLabel, addButton);
-
-  const savedHeading = el("h2", undefined, "Saved names");
-  const savedList = el("ul", "saved-names");
+  const sharedTimersHeading = el("h2");
+  const sharedTimerList = el("ul", "shared-timer-list");
+  const sharedTimerPicker = namePicker({
+    placeholder: "New Shared timer, e.g. fight",
+    saved: savedSharedTimerNames,
+    isInGame: (name) => hasSharedTimerNamed(sharedTimers, name),
+    hasRoom: () => canAddSharedTimer(sharedTimers),
+    onAdd: (name) => {
+      sharedTimers = [...sharedTimers, name];
+      render();
+    },
+  });
 
   const footer = el("footer", "setup-footer");
   const hint = el("p", "setup-hint");
   const start = el("button", "primary-button", "Start");
   footer.append(hint, start);
 
-  screen.append(header, playersHeading, playerList, addForm, savedHeading, savedList, footer);
+  screen.append(
+    header,
+    playersHeading,
+    playerList,
+    ...playerPicker.elements,
+    sharedTimersHeading,
+    sharedTimerList,
+    ...sharedTimerPicker.elements,
+    footer,
+  );
   root.replaceChildren(screen);
-
-  const isInGame = (name: string) => hasPlayerNamed(players, name);
-  const canAdd = (name: string) => name !== "" && !isInGame(name) && canAddPlayer(players);
 
   /** Add a Player with the first Color nobody has taken; tap their swatch to change it. */
   function addPlayer(name: string) {
-    if (!canAdd(name)) return;
     players = [...players, { name, color: availableColors(players)[0] }];
     render();
   }
 
-  addForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const name = nameInput.value.trim();
-    if (!canAdd(name)) return;
-    if (saveBox.checked) savedNames = savePlayerName(name);
-    nameInput.value = "";
-    saveBox.checked = false;
-    addPlayer(name);
-  });
-  nameInput.addEventListener("input", updateControls);
-
   start.addEventListener("click", () => {
-    if (setupProblem(players) === null) handlers.onStart(players);
+    if (setupProblem(setup()) === null) handlers.onStart(setup());
   });
 
   function renderPlayerRow(player: PlayerSetup, index: number) {
@@ -209,42 +293,29 @@ export function mountSetupScreen(
     handle.addEventListener("lostpointercapture", finish);
   }
 
-  function renderSavedNames() {
-    const available = savedNames.filter((n) => !isInGame(n));
-    savedHeading.hidden = available.length === 0;
-    savedList.replaceChildren(
-      ...available.map((name) => {
-        const item = el("li", "saved-name");
-        const pick = el("button", "saved-name__pick", name);
-        pick.type = "button";
-        pick.disabled = !canAddPlayer(players);
-        pick.addEventListener("click", () => addPlayer(name));
-        const del = el("button", "icon-button", "×");
-        del.type = "button";
-        del.setAttribute("aria-label", `Delete saved name ${name}`);
-        del.addEventListener("click", () => {
-          if (!confirm(`Delete saved name "${name}"?`)) return;
-          savedNames = deleteSavedPlayerName(name);
-          render();
-        });
-        item.append(pick, del);
-        return item;
-      }),
-    );
-  }
-
-  function updateControls() {
-    addButton.disabled = !canAdd(nameInput.value.trim());
-    const problem = setupProblem(players);
-    start.disabled = problem !== null;
-    hint.textContent = problem ? PROBLEM_HINTS[problem] : "";
+  function renderSharedTimerRow(name: string, index: number) {
+    const row = el("li", "shared-timer-row");
+    const remove = el("button", "icon-button", "×");
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Remove ${name}`);
+    remove.addEventListener("click", () => {
+      sharedTimers = sharedTimers.filter((_, i) => i !== index);
+      render();
+    });
+    row.append(el("span", "shared-timer-name", name), remove);
+    return row;
   }
 
   function render() {
     playersHeading.textContent = `Players (${players.length})`;
     playerList.replaceChildren(...players.map(renderPlayerRow));
-    renderSavedNames();
-    updateControls();
+    playerPicker.render();
+    sharedTimersHeading.textContent = `Shared timers (${sharedTimers.length}/${MAX_SHARED_TIMERS})`;
+    sharedTimerList.replaceChildren(...sharedTimers.map(renderSharedTimerRow));
+    sharedTimerPicker.render();
+    const problem = setupProblem(setup());
+    start.disabled = problem !== null;
+    hint.textContent = problem ? PROBLEM_HINTS[problem] : "";
   }
 
   render();

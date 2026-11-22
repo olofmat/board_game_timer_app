@@ -20,6 +20,54 @@ body {
   flex-direction: column;
 }
 
+/* Game screen: Shared timer buttons in the top quarter, Player area below. */
+.game-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.shared-timers {
+  flex: 0 0 25%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-auto-flow: column;
+  gap: 8px;
+  padding: calc(env(safe-area-inset-top) + 8px) 8px 8px;
+  box-sizing: border-box;
+}
+
+/* 1: left; 2: left + right; 3: two stacked left, one right; 4: two left, two right. */
+.shared-timers[data-count="1"] .shared-timer,
+.shared-timers[data-count="2"] .shared-timer {
+  grid-row: 1 / 3;
+}
+
+.shared-timers[data-count="3"] .shared-timer:nth-child(3) {
+  grid-row: 1 / 3;
+}
+
+.shared-timer {
+  border: 2px solid #3a3a42;
+  border-radius: 14px;
+  background: #26262c;
+  font-size: 1.3rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.shared-timer--running {
+  background: #f2f2f2;
+  border-color: #f2f2f2;
+  color: #1b1b1f;
+}
+
 /* Player area: fills the screen while there are no Shared timers. */
 .player-area {
   position: relative;
@@ -45,8 +93,14 @@ body {
   padding: 0 2.5rem;
 }
 
-/* Activation delay: shown dimmed until the Handover. */
-.player-area[data-state="activating"] {
+.shared-timers + .player-area {
+  padding-top: 0;
+}
+
+/* Activation delay: shown dimmed until the Handover. While a Shared timer
+   runs, the interrupted Player is shown dimmed too. */
+.player-area[data-state="activating"],
+.player-area[data-state="shared-timer"] {
   filter: brightness(0.55);
 }
 
@@ -174,7 +228,15 @@ button {
   margin: 20px 0 8px;
 }
 
+.setup-screen h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  opacity: 0.55;
+  margin: 14px 0 8px;
+}
+
 .player-list,
+.shared-timer-list,
 .saved-names {
   list-style: none;
   margin: 0;
@@ -189,6 +251,14 @@ button {
   padding: 8px 4px;
   border-bottom: 1px solid #2e2e34;
   background: var(--bg);
+}
+
+.shared-timer-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px 8px 12px;
+  border-bottom: 1px solid #2e2e34;
 }
 
 .player-row--dragging {
@@ -208,7 +278,8 @@ button {
   -webkit-user-select: none;
 }
 
-.player-name {
+.player-name,
+.shared-timer-name {
   flex: 1;
   font-size: 1.15rem;
   overflow-wrap: anywhere;
@@ -242,14 +313,14 @@ button {
   padding: 8px 4px 4px;
 }
 
-.add-player {
+.add-name {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 16px;
 }
 
-.add-player input[type="text"] {
+.add-name input[type="text"] {
   flex: 1;
   min-width: 0;
   font: inherit;
