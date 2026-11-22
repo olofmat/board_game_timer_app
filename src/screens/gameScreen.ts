@@ -39,6 +39,32 @@ function classify(dx: number, dy: number): Gesture {
   return null;
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/**
+ * The clock symbol marking what is gaining time right now. An inline SVG
+ * (not an emoji) so it looks the same on every phone; it is drawn in
+ * `currentColor` and is decorative, hidden from screen readers.
+ */
+function clockIcon(): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "clock-icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2.5");
+  svg.setAttribute("stroke-linecap", "round");
+  const face = document.createElementNS(SVG_NS, "circle");
+  face.setAttribute("cx", "12");
+  face.setAttribute("cy", "12");
+  face.setAttribute("r", "9.5");
+  const hands = document.createElementNS(SVG_NS, "path");
+  hands.setAttribute("d", "M12 6.5V12l3.5 2.5");
+  svg.append(face, hands);
+  return svg;
+}
+
 /**
  * Show times text for a Shared timer button: total and current stretch
  * with 1–2 buttons (the stretch only while it is in play), total alone
@@ -79,10 +105,14 @@ export function mountGameScreen(
   const area = el("div", "player-area");
   const previous = el("div", "neighbour neighbour--previous");
   const next = el("div", "neighbour neighbour--next");
-  const name = el("div", "current-name");
+  const nameText = el("span");
+  const nameRow = el("span", "current-name__row");
+  nameRow.append(clockIcon(), nameText);
+  const nameBlock = el("div", "current-name");
+  nameBlock.append(nameRow);
   const playerTimes = el("div", "player-times");
   const center = el("div", "player-center");
-  center.append(name, playerTimes);
+  center.append(nameBlock, playerTimes);
   const paused = el("div", "paused-overlay", "PAUSED");
   area.append(previous, center, next, paused);
 
@@ -94,7 +124,9 @@ export function mountGameScreen(
     const button = el("button", "shared-timer");
     button.type = "button";
     const times = el("span", "shared-timer__times");
-    button.append(el("span", "shared-timer__name", sharedTimerName), times);
+    const nameRow = el("span", "shared-timer__name");
+    nameRow.append(clockIcon(), sharedTimerName);
+    button.append(nameRow, times);
     button.addEventListener("click", () => {
       applyCommand(pressSharedTimer(game, index, clock()));
     });
@@ -194,7 +226,8 @@ export function mountGameScreen(
     area.style.setProperty("--player-fill", color.fill);
     area.style.setProperty("--player-text", color.text);
     area.dataset.state = snap.state;
-    name.textContent = snap.currentPlayer.name;
+    nameText.textContent = snap.currentPlayer.name;
+    nameRow.classList.toggle("current-name__row--running", snap.state === "running");
     previous.textContent = snap.previousName;
     next.textContent = snap.nextName;
     playerTimes.hidden = !showTimes;

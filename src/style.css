@@ -80,6 +80,12 @@ body {
   border-style: dashed;
 }
 
+.shared-timer__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
 .shared-timer__times {
   font-size: 0.85rem;
   font-weight: 500;
@@ -127,7 +133,39 @@ body {
   font-weight: 700;
   text-align: center;
   overflow-wrap: anywhere;
-  padding: 0 2.5rem;
+  /* Room on the left for the clock symbol at any name size. */
+  padding: 0 max(2.5rem, 0.65em);
+}
+
+/* The clock symbol marks what is gaining time right now; hidden otherwise. */
+.clock-icon {
+  display: none;
+  flex: none;
+  width: 0.9em;
+  height: 0.9em;
+}
+
+/* Beside the Current player's name, outside the name's box so the centred name doesn't shift when it appears. */
+.current-name__row {
+  position: relative;
+  display: inline-block;
+}
+
+.current-name__row .clock-icon {
+  position: absolute;
+  right: 100%;
+  /* Level with the first line, also when a long name wraps. */
+  top: 0.6em;
+  width: 0.45em;
+  height: 0.45em;
+  margin-right: 0.15em;
+  transform: translateY(-50%);
+}
+
+/* More specific than the placement rules above, so the order of rules can't hide it. */
+.current-name__row.current-name__row--running .clock-icon,
+.shared-timer.shared-timer--running .clock-icon {
+  display: block;
 }
 
 .shared-timers + .player-area {
