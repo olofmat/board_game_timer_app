@@ -79,6 +79,24 @@ export interface Snapshot {
   gameMs: number;
 }
 
+/** One Player's line in the Summary. */
+export interface SummaryPlayer extends PlayerTimes {
+  /** Total time divided by Turns; null for a Player who never had a Turn. */
+  averageTurnMs: number | null;
+}
+
+/** What a Game adds up to after End game. */
+export interface Summary {
+  /** Slowest first. */
+  players: SummaryPlayer[];
+  sharedTimers: SharedTimerTimes[];
+  swipingMs: number;
+  pausedMs: number;
+  gameMs: number;
+  /** The setup to Play again with: same Players, Colors, Turn order and Shared timers. */
+  setup: GameSetup;
+}
+
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 10;
 export const MAX_SHARED_TIMERS = 4;
@@ -207,8 +225,6 @@ export function snapshot(game: GameState, now: number): Snapshot {
   const settled = credit(game, now);
   const playerAt = (offset: number) => settled.players[turnOrderIndex(settled, offset)];
   const current = playerAt(0);
-  const playersMs = settled.players.reduce((sum, p) => sum + p.timeMs, 0);
-  const sharedMs = settled.sharedTimers.reduce((sum, t) => sum + t.timeMs, 0);
   return {
     currentPlayer: { name: current.name, color: current.color },
     state: settled.mode,
@@ -223,8 +239,33 @@ export function snapshot(game: GameState, now: number): Snapshot {
     currentTurnMs: settled.turnPlayerIndex === settled.currentIndex ? settled.turnMs : 0,
     swipingMs: settled.swipingMs,
     pausedMs: settled.pausedMs,
-    gameMs: playersMs + sharedMs + settled.swipingMs,
+    gameMs: gameTime(settled),
   };
+}
+
+/** End the Game at `now`: everything that ran is credited and added up into the Summary. */
+export function endGame(game: GameState, now: number): Summary {
+  const settled = credit(game, now);
+  return {
+    players: settled.players
+      .map((p) => ({ ...p, averageTurnMs: p.turns > 0 ? p.timeMs / p.turns : null }))
+      .sort((a, b) => b.timeMs - a.timeMs),
+    sharedTimers: settled.sharedTimers.map((t) => ({ ...t })),
+    swipingMs: settled.swipingMs,
+    pausedMs: settled.pausedMs,
+    gameMs: gameTime(settled),
+    setup: {
+      players: settled.players.map(({ name, color }) => ({ name, color })),
+      sharedTimers: settled.sharedTimers.map((t) => t.name),
+    },
+  };
+}
+
+/** Game time: all Players' time, all Shared timers' time and Swiping time; Paused time is left out. */
+function gameTime(game: GameState): number {
+  const playersMs = game.players.reduce((sum, p) => sum + p.timeMs, 0);
+  const sharedMs = game.sharedTimers.reduce((sum, t) => sum + t.timeMs, 0);
+  return playersMs + sharedMs + game.swipingMs;
 }
 
 /** Credit all time up to `now` to whatever was running, so `since` becomes `now`. */

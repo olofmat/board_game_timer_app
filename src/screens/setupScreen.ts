@@ -14,6 +14,7 @@ import {
   setupProblem,
 } from "../game/engine";
 import { type SavedNameList, savedPlayerNames, savedSharedTimerNames } from "../storage/savedNames";
+import { el } from "./dom";
 
 const COLOR_NAMES = Object.keys(COLORS) as ColorName[];
 
@@ -25,13 +26,6 @@ const PROBLEM_HINTS: Record<SetupProblem, string> = {
   "too-many-shared-timers": `A Game has at most ${MAX_SHARED_TIMERS} Shared timers.`,
   "duplicate-shared-timer-name": "Each Shared timer needs a different name.",
 };
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 /**
  * Add-by-name controls shared by Players and Shared timers: a text field
@@ -122,9 +116,11 @@ function namePicker(options: {
 export function mountSetupScreen(
   root: HTMLElement,
   handlers: { onStart: (setup: GameSetup) => void; onBack: () => void },
+  /** Pre-filled setup, e.g. the last Game's for Play again; empty when omitted. */
+  initial: GameSetup = { players: [], sharedTimers: [] },
 ) {
-  let players: PlayerSetup[] = [];
-  let sharedTimers: string[] = [];
+  let players: PlayerSetup[] = [...initial.players];
+  let sharedTimers: string[] = [...initial.sharedTimers];
   /** Index of the Player whose Color palette is open, if any. */
   let paletteFor: number | null = null;
   const setup = (): GameSetup => ({ players, sharedTimers });

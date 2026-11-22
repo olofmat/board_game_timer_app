@@ -5,6 +5,7 @@ import {
   canAddPlayer,
   canAddSharedTimer,
   createGame,
+  endGame,
   type GameSetup,
   type GameState,
   type PlayerSetup,
@@ -375,6 +376,53 @@ describe("Shared timers", () => {
     expect(snap.pausedMs).toBe(5_000);
     expect(snap.sharedTimers[1].timeMs).toBe(3_000);
     expect(snap.gameMs).toBe(3_000);
+  });
+});
+
+describe("End game", () => {
+  it("lists Players slowest first with their total time, Turns and average Turn length", () => {
+    // Anna 2s, Bo 9s over two Turns, Cleo 4s.
+    let step = { game: tap(createGame(GAME, 0), 0), now: 2_000 };
+    step = swipeAndHandOver(step.game, "right", step.now); // Bo
+    step = swipeAndHandOver(step.game, "right", step.now + 5_000); // Cleo
+    step = swipeAndHandOver(step.game, "left", step.now + 4_000); // Bo again
+    const summary = endGame(step.game, step.now + 4_000);
+    expect(summary.players).toEqual([
+      { name: "Bo", color: "blue", timeMs: 9_000, turns: 2, averageTurnMs: 4_500 },
+      { name: "Cleo", color: "green", timeMs: 4_000, turns: 1, averageTurnMs: 4_000 },
+      { name: "Anna", color: "red", timeMs: 2_000, turns: 1, averageTurnMs: 2_000 },
+    ]);
+  });
+
+  it("adds up Shared timers, Swiping time and Game time, with Paused time left out of Game time", () => {
+    let game = createGame({ players: PLAYERS, sharedTimers: ["fight", "buying"] }, 0);
+    game = tap(game, 1_000); // 1s paused, then Anna
+    game = pressSharedTimer(game, 0, 4_000); // Anna 3s
+    game = swipe(game, "right", 6_000); // fight 2s, then 0.3s Swiping time
+    game = tap(game, 10_300); // Bo 4s, then paused
+    game = pressSharedTimer(game, 1, 12_300); // 2s paused
+    const summary = endGame(game, 13_300); // buying 1s
+    expect(summary.sharedTimers).toEqual([
+      { name: "fight", timeMs: 2_000 },
+      { name: "buying", timeMs: 1_000 },
+    ]);
+    expect(summary.swipingMs).toBe(300);
+    expect(summary.pausedMs).toBe(3_000);
+    expect(summary.gameMs).toBe(10_300);
+  });
+
+  it("gives a Player who never had a Turn no average Turn length", () => {
+    const summary = endGame(tap(createGame(GAME, 0), 0), 1_000);
+    expect(summary.players.find((p) => p.name === "Bo")).toEqual({
+      name: "Bo", color: "blue", timeMs: 0, turns: 0, averageTurnMs: null,
+    });
+  });
+
+  it("keeps the Game's setup for Play again: same Players, Colors, Turn order and Shared timers", () => {
+    const setup: GameSetup = { players: PLAYERS, sharedTimers: ["fight"] };
+    let step = swipeAndHandOver(tap(createGame(setup, 0), 0), "right", 5_000);
+    step = swipeAndHandOver(step.game, "right", step.now + 9_000);
+    expect(endGame(step.game, step.now + 1_000).setup).toEqual(setup);
   });
 });
 

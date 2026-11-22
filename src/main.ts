@@ -1,8 +1,9 @@
 import "./style.css";
-import { createGame } from "./game/engine";
+import { createGame, type GameSetup, type Summary } from "./game/engine";
 import { mountGameScreen } from "./screens/gameScreen";
 import { mountHomeScreen } from "./screens/homeScreen";
 import { mountSetupScreen } from "./screens/setupScreen";
+import { mountSummaryScreen } from "./screens/summaryScreen";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("#app element missing from index.html");
@@ -12,10 +13,18 @@ function showHome() {
   mountHomeScreen(root, showSetup);
 }
 
-function showSetup() {
-  mountSetupScreen(root, {
-    onBack: showHome,
-    onStart: (setup) => mountGameScreen(root, createGame(setup, Date.now())),
+function showSetup(initial?: GameSetup) {
+  mountSetupScreen(root, { onBack: showHome, onStart: showGame }, initial);
+}
+
+function showGame(setup: GameSetup) {
+  mountGameScreen(root, createGame(setup, Date.now()), showSummary);
+}
+
+function showSummary(summary: Summary) {
+  mountSummaryScreen(root, summary, {
+    onPlayAgain: () => showSetup(summary.setup),
+    onNewGame: () => showSetup(),
   });
 }
 
