@@ -39,7 +39,7 @@ The Player shown in the Player area; swipes move relative to them. Being current
 The bottom three quarters of the game screen, showing the Current player. Swiping and tapping happen here.
 
 **Activation delay**:
-The 0.3 seconds after a swipe during which the new Current player is shown dimmed and gains no time. Swiping again within it skips that Player entirely.
+The 0.3 seconds after a swipe during which the new Current player is shown dimmed and gains no time. Swiping again within it skips that Player entirely. Tapping within it pauses on the new Current player before the Handover (the delay so far is Swiping time); the next tap resumes them at once and counts as the Handover.
 
 **Handover**:
 The moment the Activation delay ends and the new Current player's clock starts.
