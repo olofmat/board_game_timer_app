@@ -38,16 +38,16 @@ export interface SharedTimerTimes {
 }
 
 export interface SharedTimerSnapshot extends SharedTimerTimes {
-  /** Time since this Shared timer was last started (0 unless it is running). */
+  /** Time since this Shared timer was last started (0 unless it is in play). */
   stretchMs: number;
 }
 
 export interface GameState {
   players: PlayerTimes[];
   sharedTimers: SharedTimerTimes[];
-  /** Index of the running Shared timer; null unless mode is "shared-timer". */
-  runningSharedTimer: number | null;
-  /** Credited time since the running Shared timer was started. */
+  /** Index of the Shared timer in play (running, or paused while mode is "paused"); null when play is with the Current player. */
+  sharedTimerInPlay: number | null;
+  /** Credited time in the current stretch of the Shared timer in play (pausing does not split it). */
   stretchMs: number;
   currentIndex: number;
   mode: RunState;
@@ -64,14 +64,14 @@ export interface GameState {
 }
 
 export interface Snapshot {
-  currentPlayer: PlayerSetup;
+  currentPlayer: PlayerTimes;
   state: RunState;
   previousName: string;
   nextName: string;
   players: PlayerTimes[];
   sharedTimers: SharedTimerSnapshot[];
-  /** Index of the running Shared timer, or null. */
-  runningSharedTimer: number | null;
+  /** Index of the Shared timer in play (running, or paused while state is "paused"), or null. */
+  sharedTimerInPlay: number | null;
   /** Time in the Current player's ongoing Turn (0 if they have none). */
   currentTurnMs: number;
   swipingMs: number;
@@ -161,7 +161,7 @@ export function createGame(setup: GameSetup, now: number): GameState {
   return {
     players: setup.players.map(({ name, color }) => ({ name, color, timeMs: 0, turns: 0 })),
     sharedTimers: setup.sharedTimers.map((name) => ({ name, timeMs: 0 })),
-    runningSharedTimer: null,
+    sharedTimerInPlay: null,
     stretchMs: 0,
     currentIndex: 0,
     mode: "paused",
@@ -175,15 +175,35 @@ export function createGame(setup: GameSetup, now: number): GameState {
 }
 
 /**
- * Tap in the Player area: pause, or resume the Current player. During a
- * Shared timer it returns to the interrupted Player at once, as a new Turn.
- * Tapping during an Activation delay pauses on the new Current player
- * before their Handover, so they gain no time or Turn yet.
+ * Tap in the Player area: pause, or resume what was paused (see `resume`).
+ * During a Shared timer it returns to the interrupted Player at once, as a
+ * new Turn. Tapping during an Activation delay pauses on the new Current
+ * player before their Handover, so they gain no time or Turn yet.
  */
 export function tap(game: GameState, now: number): GameState {
   const settled = credit(game, now);
-  if (settled.mode === "paused" || settled.mode === "shared-timer") return startClock(settled);
+  if (settled.mode === "paused") return resume(settled, now);
+  if (settled.mode === "shared-timer") return startClock(settled);
+  return pause(settled, now);
+}
+
+/**
+ * Pause whatever runs (from Settings, the way to pause during a Shared
+ * timer). Pausing during an Activation delay pauses on the new Current
+ * player before their Handover. Does nothing if already paused.
+ */
+export function pause(game: GameState, now: number): GameState {
+  const settled = credit(game, now);
+  if (settled.mode === "paused") return settled;
   return { ...settled, mode: "paused", handoverAt: null };
+}
+
+/** Resume what was paused: the Shared timer in play, or else the Current player. Does nothing unless paused. */
+export function resume(game: GameState, now: number): GameState {
+  const settled = credit(game, now);
+  if (settled.mode !== "paused") return settled;
+  if (settled.sharedTimerInPlay !== null) return { ...settled, mode: "shared-timer" };
+  return startClock(settled);
 }
 
 /**
@@ -205,16 +225,20 @@ export function swipe(game: GameState, direction: SwipeDirection, now: number): 
  * Press a Shared timer button: stop whatever runs at once, with no
  * Activation delay, and start that Shared timer. The Current player
  * stays current as the interrupted Player. Pressing the running Shared
- * timer again returns to that Player, like a tap.
+ * timer again returns to that Player, like a tap; pressing a paused one
+ * resumes it.
  */
 export function pressSharedTimer(game: GameState, index: number, now: number): GameState {
   const settled = credit(game, now);
-  if (settled.mode === "shared-timer" && settled.runningSharedTimer === index) return startClock(settled);
+  if (settled.sharedTimerInPlay === index) {
+    if (settled.mode === "shared-timer") return startClock(settled);
+    if (settled.mode === "paused") return resume(settled, now);
+  }
   return {
     ...settled,
     mode: "shared-timer",
     handoverAt: null,
-    runningSharedTimer: index,
+    sharedTimerInPlay: index,
     stretchMs: 0,
     // Returning to any Player from a Shared timer starts a new Turn.
     turnPlayerIndex: null,
@@ -226,16 +250,16 @@ export function snapshot(game: GameState, now: number): Snapshot {
   const playerAt = (offset: number) => settled.players[turnOrderIndex(settled, offset)];
   const current = playerAt(0);
   return {
-    currentPlayer: { name: current.name, color: current.color },
+    currentPlayer: { ...current },
     state: settled.mode,
     previousName: playerAt(-1).name,
     nextName: playerAt(1).name,
     players: settled.players.map((p) => ({ ...p })),
     sharedTimers: settled.sharedTimers.map((t, i) => ({
       ...t,
-      stretchMs: i === settled.runningSharedTimer ? settled.stretchMs : 0,
+      stretchMs: i === settled.sharedTimerInPlay ? settled.stretchMs : 0,
     })),
-    runningSharedTimer: settled.runningSharedTimer,
+    sharedTimerInPlay: settled.sharedTimerInPlay,
     currentTurnMs: settled.turnPlayerIndex === settled.currentIndex ? settled.turnMs : 0,
     swipingMs: settled.swipingMs,
     pausedMs: settled.pausedMs,
@@ -295,7 +319,7 @@ function credit(game: GameState, now: number): GameState {
       return {
         ...game,
         sharedTimers: game.sharedTimers.map((t, i) =>
-          i === game.runningSharedTimer ? { ...t, timeMs: t.timeMs + elapsed } : t,
+          i === game.sharedTimerInPlay ? { ...t, timeMs: t.timeMs + elapsed } : t,
         ),
         since: now,
         stretchMs: game.stretchMs + elapsed,
@@ -315,7 +339,7 @@ function startClock(game: GameState): GameState {
 }
 
 function stopSharedTimer(game: GameState): GameState {
-  return { ...game, runningSharedTimer: null, stretchMs: 0 };
+  return { ...game, sharedTimerInPlay: null, stretchMs: 0 };
 }
 
 /** Index of the Player `offset` steps from the Current player, cycling through the Turn order. */

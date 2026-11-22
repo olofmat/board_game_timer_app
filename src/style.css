@@ -22,6 +22,7 @@ body {
 
 /* Game screen: Shared timer buttons in the top quarter, Player area below. */
 .game-screen {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -50,6 +51,11 @@ body {
 }
 
 .shared-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   border: 2px solid #3a3a42;
   border-radius: 14px;
   background: #26262c;
@@ -68,6 +74,24 @@ body {
   color: #1b1b1f;
 }
 
+/* In play but paused: resumes on a tap. */
+.shared-timer--paused {
+  border-color: #f2f2f2;
+  border-style: dashed;
+}
+
+.shared-timer__times {
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.shared-timer__times[hidden],
+.player-times[hidden] {
+  display: none;
+}
+
 /* Player area: fills the screen while there are no Shared timers. */
 .player-area {
   position: relative;
@@ -83,6 +107,19 @@ body {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   overflow: hidden;
+}
+
+.player-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-times {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 .current-name {
@@ -160,6 +197,44 @@ body {
   background: #3a3a42;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Settings: a panel over the Game screen, which stays mounted underneath. */
+.settings-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);
+  background: var(--bg);
+}
+
+.settings-panel[hidden] {
+  display: none;
+}
+
+.settings-panel h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.15rem;
+  padding: 8px 0;
+}
+
+.settings-toggle input {
+  width: 22px;
+  height: 22px;
+}
+
+.settings-panel .secondary-button {
+  margin-top: auto;
 }
 
 /* Shared controls */

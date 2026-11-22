@@ -8,8 +8,10 @@ import {
   endGame,
   type GameSetup,
   type GameState,
+  pause,
   type PlayerSetup,
   pressSharedTimer,
+  resume,
   setupProblem,
   snapshot,
   swipe,
@@ -271,7 +273,7 @@ describe("Shared timers", () => {
     game = pressSharedTimer(game, 0, 10_000);
     const snap = snapshot(game, 14_000);
     expect(snap.state).toBe("shared-timer");
-    expect(snap.runningSharedTimer).toBe(0);
+    expect(snap.sharedTimerInPlay).toBe(0);
     expect(snap.currentPlayer.name).toBe("Anna"); // the interrupted Player
     expect(snap.players[0]).toMatchObject({ timeMs: 10_000, turns: 1 });
     expect(snap.sharedTimers).toEqual([
@@ -287,7 +289,7 @@ describe("Shared timers", () => {
     game = tap(game, 14_000);
     const snap = snapshot(game, 15_000);
     expect(snap.state).toBe("running");
-    expect(snap.runningSharedTimer).toBeNull();
+    expect(snap.sharedTimerInPlay).toBeNull();
     expect(snap.currentPlayer.name).toBe("Anna");
     expect(snap.players[0]).toMatchObject({ timeMs: 11_000, turns: 2 });
     expect(snap.currentTurnMs).toBe(1_000);
@@ -302,7 +304,7 @@ describe("Shared timers", () => {
     game = pressSharedTimer(game, 1, 13_000);
     const snap = snapshot(game, 15_000);
     expect(snap.state).toBe("running");
-    expect(snap.runningSharedTimer).toBeNull();
+    expect(snap.sharedTimerInPlay).toBeNull();
     expect(snap.players[0]).toMatchObject({ timeMs: 12_000, turns: 2 });
     expect(snap.sharedTimers[1]).toMatchObject({ timeMs: 3_000 });
   });
@@ -313,7 +315,7 @@ describe("Shared timers", () => {
     game = pressSharedTimer(game, 1, 12_000);
     const snap = snapshot(game, 15_000);
     expect(snap.state).toBe("shared-timer");
-    expect(snap.runningSharedTimer).toBe(1);
+    expect(snap.sharedTimerInPlay).toBe(1);
     expect(snap.currentPlayer.name).toBe("Anna");
     expect(snap.sharedTimers).toEqual([
       { name: "fight", timeMs: 2_000, stretchMs: 0 },
@@ -333,7 +335,7 @@ describe("Shared timers", () => {
 
     const during = snapshot(game, 12_100);
     expect(during.state).toBe("activating");
-    expect(during.runningSharedTimer).toBeNull();
+    expect(during.sharedTimerInPlay).toBeNull();
     expect(during.currentPlayer.name).toBe(name);
     expect(during.sharedTimers[0]).toEqual({ name: "fight", timeMs: 2_000, stretchMs: 0 });
     expect(during.players[index]).toMatchObject({ timeMs: 0, turns: 0 });
@@ -376,6 +378,93 @@ describe("Shared timers", () => {
     expect(snap.pausedMs).toBe(5_000);
     expect(snap.sharedTimers[1].timeMs).toBe(3_000);
     expect(snap.gameMs).toBe(3_000);
+  });
+});
+
+describe("pause and resume (from Settings)", () => {
+  const WITH_TIMERS: GameSetup = { players: PLAYERS, sharedTimers: ["fight", "buying"] };
+
+  it("pauses a running Shared timer; resuming continues that Shared timer and its stretch", () => {
+    let game = tap(createGame(WITH_TIMERS, 0), 0);
+    game = pressSharedTimer(game, 0, 10_000);
+    game = pause(game, 12_000);
+
+    const paused = snapshot(game, 20_000);
+    expect(paused.state).toBe("paused");
+    expect(paused.sharedTimerInPlay).toBe(0);
+    expect(paused.currentPlayer.name).toBe("Anna");
+    expect(paused.sharedTimers[0]).toEqual({ name: "fight", timeMs: 2_000, stretchMs: 2_000 });
+    expect(paused.pausedMs).toBe(8_000);
+
+    game = resume(game, 20_000);
+    const snap = snapshot(game, 21_000);
+    expect(snap.state).toBe("shared-timer");
+    expect(snap.sharedTimers[0]).toEqual({ name: "fight", timeMs: 3_000, stretchMs: 3_000 });
+    expect(snap.players[0]).toMatchObject({ timeMs: 10_000, turns: 1 });
+    expect(snap.gameMs).toBe(13_000);
+  });
+
+  it("a tap while paused on a Shared timer resumes that Shared timer", () => {
+    let game = tap(createGame(WITH_TIMERS, 0), 0);
+    game = pressSharedTimer(game, 1, 10_000);
+    game = pause(game, 12_000);
+    game = tap(game, 15_000);
+    const snap = snapshot(game, 16_000);
+    expect(snap.state).toBe("shared-timer");
+    expect(snap.sharedTimerInPlay).toBe(1);
+    expect(snap.sharedTimers[1]).toEqual({ name: "buying", timeMs: 3_000, stretchMs: 3_000 });
+    expect(snap.players[0]).toMatchObject({ timeMs: 10_000, turns: 1 });
+  });
+
+  it("pauses a running Player; resuming continues their Turn", () => {
+    let game = tap(createGame(WITH_TIMERS, 0), 0);
+    game = pause(game, 4_000);
+    game = resume(game, 9_000);
+    const snap = snapshot(game, 10_000);
+    expect(snap.state).toBe("running");
+    expect(snap.players[0]).toMatchObject({ timeMs: 5_000, turns: 1 });
+    expect(snap.currentTurnMs).toBe(5_000);
+    expect(snap.pausedMs).toBe(5_000);
+  });
+
+  it("pausing while paused and resuming while running change nothing", () => {
+    const paused = pause(createGame(WITH_TIMERS, 0), 1_000);
+    expect(snapshot(pause(paused, 2_000), 3_000)).toEqual(snapshot(paused, 3_000));
+    const running = tap(paused, 1_000);
+    expect(snapshot(resume(running, 2_000), 3_000)).toEqual(snapshot(running, 3_000));
+  });
+
+  it("swiping while paused on a Shared timer ends it and goes to the Player after the interrupted one", () => {
+    let game = tap(createGame(WITH_TIMERS, 0), 0);
+    game = pressSharedTimer(game, 0, 10_000);
+    game = pause(game, 12_000);
+    game = swipe(game, "right", 15_000);
+    const snap = snapshot(game, 16_000);
+    expect(snap.state).toBe("running");
+    expect(snap.sharedTimerInPlay).toBeNull();
+    expect(snap.currentPlayer.name).toBe("Bo");
+    expect(snap.players[1]).toMatchObject({ timeMs: 700, turns: 1 });
+    expect(snap.sharedTimers[0].timeMs).toBe(2_000);
+  });
+
+  it("pressing the paused Shared timer's button resumes it, continuing its stretch", () => {
+    let game = tap(createGame(WITH_TIMERS, 0), 0);
+    game = pressSharedTimer(game, 0, 10_000);
+    game = pause(game, 12_000);
+    game = pressSharedTimer(game, 0, 15_000);
+    const snap = snapshot(game, 16_000);
+    expect(snap.state).toBe("shared-timer");
+    expect(snap.sharedTimers[0]).toEqual({ name: "fight", timeMs: 3_000, stretchMs: 3_000 });
+  });
+});
+
+describe("Show times", () => {
+  it("gives the Current player's total time alongside their current Turn time", () => {
+    let step = swipeAndHandOver(tap(createGame(GAME, 0), 0), "right", 1_000); // Bo
+    step = swipeAndHandOver(step.game, "left", step.now + 2_000); // Anna again
+    const snap = snapshot(step.game, step.now + 500);
+    expect(snap.currentPlayer).toEqual({ name: "Anna", color: "red", timeMs: 1_500, turns: 2 });
+    expect(snap.currentTurnMs).toBe(500);
   });
 });
 

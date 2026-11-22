@@ -13,7 +13,10 @@ A person taking turns in a Game. Each Player has a name and a Color, both unique
 _Avoid_: User, participant
 
 **Shared timer**:
-A clock for common time that belongs to no Player, such as "fight" or "buying". A Game has 0–4 of them, with names unique within the Game (ignoring case). While one runs, the Current player is the interrupted Player that play returns to.
+A clock for common time that belongs to no Player, such as "fight" or "buying". A Game has 0–4 of them, with names unique within the Game (ignoring case). While one runs, the Current player is the interrupted Player that play returns to. The Shared timer that is running, or paused, is the one in play. Pausing a running Shared timer (from Settings) keeps it in play: resuming, a tap, or pressing its button continues it.
+
+**Stretch**:
+One continuous run of a Shared timer, from when its button was pressed until play leaves it. Pausing does not split a Stretch.
 _Avoid_: Activity, segment, user
 
 **Saved name**:
@@ -56,6 +59,9 @@ Time while the Game is paused. Shown in the Summary but not part of Game time.
 **Game time**:
 The sum of all Players' time, all Shared timers' time, and Swiping time.
 _Avoid_: Total time (ambiguous with a Player's total)
+
+**Show times**:
+A setting, off by default and remembered between Games, that shows clocks during a Game: the Current player's total and current Turn time, and each Shared timer's total (plus its current Stretch with 1–2 Shared timers). Off, only names are shown.
 
 **Summary**:
 The screen after End game listing each Player's total time, Turns and average Turn length, slowest first, followed by Shared timers, Swiping time, Paused time and Game time.
