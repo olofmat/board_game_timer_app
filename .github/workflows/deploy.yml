@@ -30,6 +30,9 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+        env:
+          # Shown next to the version on the Home screen (src/version.ts).
+          VITE_BUILD_COMMIT: ${{ github.sha }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
