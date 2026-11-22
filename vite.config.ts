@@ -10,7 +10,8 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: "autoUpdate",
-      injectRegister: "auto",
+      // Registered from src/platform/updates.ts, which also handles reloading into new versions.
+      injectRegister: false,
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
       manifest: {
         name: APP_NAME,
@@ -30,6 +31,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"],
+        // A new version takes over as soon as it is downloaded; src/platform/updates.ts then
+        // reloads into it at a safe moment. Set here because the plugin only turns these on
+        // for itself when it injects its own registration script.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
       },
     }),
   ],
