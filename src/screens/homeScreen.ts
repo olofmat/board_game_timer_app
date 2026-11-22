@@ -9,7 +9,7 @@ export function mountHomeScreen(root: HTMLElement, onNewGame: () => void) {
   const newGame = document.createElement("button");
   newGame.className = "primary-button";
   newGame.textContent = "New game";
-  newGame.addEventListener("click", onNewGame);
+  newGame.addEventListener("click", () => onNewGame());
   screen.append(heading, newGame);
   root.replaceChildren(screen);
 }

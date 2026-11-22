@@ -11,7 +11,7 @@ if (!app) throw new Error("#app element missing from index.html");
 const root = app;
 
 function showHome() {
-  mountHomeScreen(root, showSetup);
+  mountHomeScreen(root, () => showSetup());
 }
 
 function showSetup(initial?: GameSetup) {
