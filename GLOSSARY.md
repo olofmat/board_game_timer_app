@@ -39,7 +39,7 @@ _Avoid_: Seating, rotation
 The Player shown in the Player area; swipes move relative to them. Being current does not mean their clock is running.
 
 **Player area**:
-The bottom three quarters of the game screen, showing the Current player. Swiping and tapping happen here.
+The bottom three quarters of the game screen, showing the Current player, with the previous Player named on the left and the next on the right. Swiping and tapping happen here: swiping right to left, or tapping the right quarter, goes to the next Player; swiping left to right, or tapping the left quarter, goes to the previous one; tapping the middle half pauses or resumes.
 
 **Activation delay**:
 The 0.3 seconds after a swipe during which the new Current player is shown dimmed and gains no time. Swiping again within it skips that Player entirely. Tapping within it pauses on the new Current player before the Handover (the delay so far is Swiping time); the next tap resumes them at once and counts as the Handover.

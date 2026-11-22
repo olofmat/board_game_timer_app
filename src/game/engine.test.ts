@@ -144,7 +144,7 @@ describe("tap", () => {
 describe("swipe", () => {
   it("stops the running clock at once and hands over to the next Player after the Activation delay", () => {
     let game = tap(createGame(GAME, 0), 0);
-    game = swipe(game, "right", 10_000);
+    game = swipe(game, "next", 10_000);
 
     const during = snapshot(game, 10_100);
     expect(during.state).toBe("activating");
@@ -166,7 +166,7 @@ describe("swipe", () => {
     let step = { game: createGame(GAME, 0), now: 0 };
     const seen: string[] = [];
     for (let i = 0; i < 3; i++) {
-      step = swipeAndHandOver(step.game, "right", step.now);
+      step = swipeAndHandOver(step.game, "next", step.now);
       const snap = snapshot(step.game, step.now);
       seen.push(snap.currentPlayer.name);
     }
@@ -174,7 +174,7 @@ describe("swipe", () => {
   });
 
   it("cycles backward from the first Player to the last: Anna ← Cleo", () => {
-    const { game, now } = swipeAndHandOver(createGame(GAME, 0), "left", 0);
+    const { game, now } = swipeAndHandOver(createGame(GAME, 0), "previous", 0);
     const snap = snapshot(game, now);
     expect(snap.currentPlayer.name).toBe("Cleo");
     expect(snap.previousName).toBe("Bo");
@@ -183,8 +183,8 @@ describe("swipe", () => {
 
   it("skips a Player swiped past within the Activation delay: no time, no Turn", () => {
     let game = tap(createGame(GAME, 0), 0);
-    game = swipe(game, "right", 5_000); // to Bo
-    game = swipe(game, "right", 5_200); // past Bo to Cleo
+    game = swipe(game, "next", 5_000); // to Bo
+    game = swipe(game, "next", 5_200); // past Bo to Cleo
     const snap = snapshot(game, 6_000);
     expect(snap.currentPlayer.name).toBe("Cleo");
     expect(snap.players[1]).toMatchObject({ name: "Bo", timeMs: 0, turns: 0 });
@@ -195,8 +195,8 @@ describe("swipe", () => {
 
   it("continues the Turn when swiping back to the same Player before the Handover", () => {
     let game = tap(createGame(GAME, 0), 0);
-    game = swipe(game, "right", 4_000); // to Bo
-    game = swipe(game, "left", 4_100); // back to Anna before Bo's Handover
+    game = swipe(game, "next", 4_000); // to Bo
+    game = swipe(game, "previous", 4_100); // back to Anna before Bo's Handover
     const snap = snapshot(game, 5_400);
     expect(snap.currentPlayer.name).toBe("Anna");
     expect(snap.state).toBe("running");
@@ -207,8 +207,8 @@ describe("swipe", () => {
   });
 
   it("starts a new Turn when play is handed back to a Player after someone else's Turn", () => {
-    let step = swipeAndHandOver(tap(createGame(GAME, 0), 0), "right", 1_000); // Bo
-    step = swipeAndHandOver(step.game, "left", step.now + 1_000); // back to Anna
+    let step = swipeAndHandOver(tap(createGame(GAME, 0), 0), "next", 1_000); // Bo
+    step = swipeAndHandOver(step.game, "previous", step.now + 1_000); // back to Anna
     const snap = snapshot(step.game, step.now + 500);
     expect(snap.players[0]).toMatchObject({ timeMs: 1_500, turns: 2 });
     expect(snap.currentTurnMs).toBe(500);
@@ -219,7 +219,7 @@ describe("swiping while paused", () => {
   it("runs an Activation delay as Swiping time, then resumes on the new Player", () => {
     let game = tap(createGame(GAME, 0), 0);
     game = tap(game, 1_000); // pause on Anna
-    game = swipe(game, "right", 3_000);
+    game = swipe(game, "next", 3_000);
 
     expect(snapshot(game, 3_100)).toMatchObject({ state: "activating", pausedMs: 2_000, swipingMs: 100 });
 
@@ -235,8 +235,8 @@ describe("swiping while paused", () => {
   it("continues the paused Player's Turn when swiping away and back before the Handover", () => {
     let game = tap(createGame(GAME, 0), 0);
     game = tap(game, 1_000); // pause on Anna
-    game = swipe(game, "right", 2_000);
-    game = swipe(game, "left", 2_100);
+    game = swipe(game, "next", 2_000);
+    game = swipe(game, "previous", 2_100);
     const snap = snapshot(game, 3_400);
     expect(snap.currentPlayer.name).toBe("Anna");
     expect(snap.players[0]).toMatchObject({ timeMs: 2_000, turns: 1 });
@@ -246,7 +246,7 @@ describe("swiping while paused", () => {
 describe("tapping during the Activation delay", () => {
   it("pauses on the new Current player; the delay so far is Swiping time and no Turn starts", () => {
     let game = tap(createGame(GAME, 0), 0);
-    game = swipe(game, "right", 1_000);
+    game = swipe(game, "next", 1_000);
     game = tap(game, 1_100);
     const snap = snapshot(game, 5_000);
     expect(snap.state).toBe("paused");
@@ -258,7 +258,7 @@ describe("tapping during the Activation delay", () => {
 
   it("resumes straight away on that Player with a new Turn on the next tap", () => {
     let game = tap(createGame(GAME, 0), 0);
-    game = swipe(game, "right", 1_000);
+    game = swipe(game, "next", 1_000);
     game = tap(game, 1_100); // pause
     game = tap(game, 2_000); // resume
     const snap = snapshot(game, 2_500);
@@ -328,9 +328,9 @@ describe("Shared timers", () => {
   });
 
   it.each([
-    ["right", "Bo", 1],
-    ["left", "Cleo", 2],
-  ] as const)("swiping %s goes to the Player after/before the interrupted one, with the Activation delay", (direction, name, index) => {
+    ["next", "Bo", 1],
+    ["previous", "Cleo", 2],
+  ] as const)("swiping to the %s Player goes to the Player after/before the interrupted one, with the Activation delay", (direction, name, index) => {
     let game = tap(createGame(WITH_TIMERS, 0), 0);
     game = pressSharedTimer(game, 0, 10_000);
     game = swipe(game, direction, 12_000);
@@ -352,8 +352,8 @@ describe("Shared timers", () => {
   it("swiping away and back to the interrupted Player before the Handover still starts a new Turn", () => {
     let game = tap(createGame(WITH_TIMERS, 0), 0);
     game = pressSharedTimer(game, 0, 10_000);
-    game = swipe(game, "right", 12_000);
-    game = swipe(game, "left", 12_100);
+    game = swipe(game, "next", 12_000);
+    game = swipe(game, "previous", 12_100);
     const snap = snapshot(game, 13_000);
     expect(snap.currentPlayer.name).toBe("Anna");
     expect(snap.players[0]).toMatchObject({ timeMs: 10_600, turns: 2 });
@@ -361,7 +361,7 @@ describe("Shared timers", () => {
 
   it("pressing one during an Activation delay interrupts the new Current player before their Handover", () => {
     let game = tap(createGame(WITH_TIMERS, 0), 0);
-    game = swipe(game, "right", 10_000);
+    game = swipe(game, "next", 10_000);
     game = pressSharedTimer(game, 0, 10_100);
     const snap = snapshot(game, 12_000);
     expect(snap.state).toBe("shared-timer");
@@ -440,7 +440,7 @@ describe("pause and resume (from Settings)", () => {
     let game = tap(createGame(WITH_TIMERS, 0), 0);
     game = pressSharedTimer(game, 0, 10_000);
     game = pause(game, 12_000);
-    game = swipe(game, "right", 15_000);
+    game = swipe(game, "next", 15_000);
     const snap = snapshot(game, 16_000);
     expect(snap.state).toBe("running");
     expect(snap.sharedTimerInPlay).toBeNull();
@@ -462,8 +462,8 @@ describe("pause and resume (from Settings)", () => {
 
 describe("Show times", () => {
   it("gives the Current player's total time alongside their current Turn time", () => {
-    let step = swipeAndHandOver(tap(createGame(GAME, 0), 0), "right", 1_000); // Bo
-    step = swipeAndHandOver(step.game, "left", step.now + 2_000); // Anna again
+    let step = swipeAndHandOver(tap(createGame(GAME, 0), 0), "next", 1_000); // Bo
+    step = swipeAndHandOver(step.game, "previous", step.now + 2_000); // Anna again
     const snap = snapshot(step.game, step.now + 500);
     expect(snap.currentPlayer).toEqual({ name: "Anna", color: "red", timeMs: 1_500, turns: 2 });
     expect(snap.currentTurnMs).toBe(500);
@@ -500,8 +500,8 @@ describe("Change order", () => {
     const DAN: PlayerSetup = { name: "Dan", color: "yellow" };
     let game = tap(createGame(GAME, 0), 0);
     game = changeOrder(game, [ANNA, BO, DAN, CLEO], 5_000);
-    let step = swipeAndHandOver(tap(game, 5_000), "right", 6_000); // Bo
-    step = swipeAndHandOver(step.game, "right", step.now + 1_000); // Dan
+    let step = swipeAndHandOver(tap(game, 5_000), "next", 6_000); // Bo
+    step = swipeAndHandOver(step.game, "next", step.now + 1_000); // Dan
     const snap = snapshot(step.game, step.now + 2_000);
     expect(snap.currentPlayer).toEqual({ name: "Dan", color: "yellow", timeMs: 2_000, turns: 1 });
     expect(snap.nextName).toBe("Cleo");
@@ -574,9 +574,9 @@ describe("End game", () => {
   it("lists Players slowest first with their total time, Turns and average Turn length", () => {
     // Anna 2s, Bo 9s over two Turns, Cleo 4s.
     let step = { game: tap(createGame(GAME, 0), 0), now: 2_000 };
-    step = swipeAndHandOver(step.game, "right", step.now); // Bo
-    step = swipeAndHandOver(step.game, "right", step.now + 5_000); // Cleo
-    step = swipeAndHandOver(step.game, "left", step.now + 4_000); // Bo again
+    step = swipeAndHandOver(step.game, "next", step.now); // Bo
+    step = swipeAndHandOver(step.game, "next", step.now + 5_000); // Cleo
+    step = swipeAndHandOver(step.game, "previous", step.now + 4_000); // Bo again
     const summary = endGame(step.game, step.now + 4_000);
     expect(summary.players).toEqual([
       { name: "Bo", color: "blue", timeMs: 9_000, turns: 2, averageTurnMs: 4_500, left: false },
@@ -589,7 +589,7 @@ describe("End game", () => {
     let game = createGame({ players: PLAYERS, sharedTimers: ["fight", "buying"] }, 0);
     game = tap(game, 1_000); // 1s paused, then Anna
     game = pressSharedTimer(game, 0, 4_000); // Anna 3s
-    game = swipe(game, "right", 6_000); // fight 2s, then 0.3s Swiping time
+    game = swipe(game, "next", 6_000); // fight 2s, then 0.3s Swiping time
     game = tap(game, 10_300); // Bo 4s, then paused
     game = pressSharedTimer(game, 1, 12_300); // 2s paused
     const summary = endGame(game, 13_300); // buying 1s
@@ -611,8 +611,8 @@ describe("End game", () => {
 
   it("keeps the Game's setup for Play again: same Players, Colors, Turn order and Shared timers", () => {
     const setup: GameSetup = { players: PLAYERS, sharedTimers: ["fight"] };
-    let step = swipeAndHandOver(tap(createGame(setup, 0), 0), "right", 5_000);
-    step = swipeAndHandOver(step.game, "right", step.now + 9_000);
+    let step = swipeAndHandOver(tap(createGame(setup, 0), 0), "next", 5_000);
+    step = swipeAndHandOver(step.game, "next", step.now + 9_000);
     expect(endGame(step.game, step.now + 1_000).setup).toEqual(setup);
   });
 });
@@ -620,7 +620,7 @@ describe("End game", () => {
 describe("engine state", () => {
   it("is plain JSON data: a round-tripped Game gives the same snapshot, even mid-Activation delay", () => {
     let game = tap(createGame(GAME, 0), 0);
-    game = swipe(game, "right", 2_000);
+    game = swipe(game, "next", 2_000);
     const restored = JSON.parse(JSON.stringify(game)) as GameState;
     expect(snapshot(restored, 2_100)).toEqual(snapshot(game, 2_100));
     expect(snapshot(restored, 9_000)).toEqual(snapshot(game, 9_000));

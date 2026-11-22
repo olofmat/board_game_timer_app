@@ -10,8 +10,8 @@ import { COLORS, type ColorName } from "./colors";
 /** Length of the Activation delay. */
 export const ACTIVATION_DELAY_MS = 300;
 
-/** Swipe right moves to the next Player in the Turn order, left to the previous one. */
-export type SwipeDirection = "right" | "left";
+/** Which neighbour in the Turn order a swipe moves to. */
+export type SwipeDirection = "next" | "previous";
 
 /** "shared-timer": a Shared timer runs while the Current player (the interrupted Player) waits. */
 export type RunState = "paused" | "running" | "activating" | "shared-timer";
@@ -253,7 +253,7 @@ export function swipe(game: GameState, direction: SwipeDirection, now: number): 
   return {
     ...settled,
     mode: "activating",
-    currentIndex: turnOrderIndex(settled, direction === "right" ? 1 : -1),
+    currentIndex: turnOrderIndex(settled, direction === "next" ? 1 : -1),
     handoverAt: now + ACTIVATION_DELAY_MS,
   };
 }

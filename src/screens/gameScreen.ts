@@ -30,13 +30,26 @@ const HEARTBEAT_MS = 5_000;
 
 type Gesture = { kind: "tap" } | { kind: "swipe"; direction: SwipeDirection } | null;
 
-/** Classify a finished pointer gesture by how far it travelled. */
-function classify(dx: number, dy: number): Gesture {
+/** Width of each edge strip of the Player area, as a fraction, where a tap moves to that side's Player. */
+const TAP_EDGE_FRACTION = 0.25;
+
+/**
+ * Classify a finished pointer gesture. The previous Player is shown on the
+ * left and the next on the right, and the gesture "pulls" a neighbour in:
+ * swiping right to left goes to the next Player, left to right to the
+ * previous one. A tap in the right quarter goes to the next Player, in
+ * the left quarter to the previous one, and in the middle half it is a
+ * plain tap (pause/resume). `xFraction` is where the gesture started,
+ * 0 at the left edge of the Player area and 1 at the right.
+ */
+function classify(dx: number, dy: number, xFraction: number): Gesture {
   if (Math.abs(dx) >= SWIPE_MIN_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
-    return { kind: "swipe", direction: dx > 0 ? "right" : "left" };
+    return { kind: "swipe", direction: dx < 0 ? "next" : "previous" };
   }
-  if (Math.hypot(dx, dy) <= TAP_MAX_PX) return { kind: "tap" };
-  return null;
+  if (Math.hypot(dx, dy) > TAP_MAX_PX) return null;
+  if (xFraction >= 1 - TAP_EDGE_FRACTION) return { kind: "swipe", direction: "next" };
+  if (xFraction < TAP_EDGE_FRACTION) return { kind: "swipe", direction: "previous" };
+  return { kind: "tap" };
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -213,7 +226,9 @@ export function mountGameScreen(
   });
   area.addEventListener("pointerup", (e) => {
     if (!start || start.id !== e.pointerId) return;
-    const gesture = classify(e.clientX - start.x, e.clientY - start.y);
+    const box = area.getBoundingClientRect();
+    const xFraction = box.width > 0 ? (start.x - box.left) / box.width : 0.5;
+    const gesture = classify(e.clientX - start.x, e.clientY - start.y, xFraction);
     start = null;
     if (!gesture) return;
     const now = clock();
