@@ -1,5 +1,6 @@
 import { colorStyle } from "../game/colors";
 import {
+  changeOrder,
   endGame,
   type GameState,
   pause,
@@ -13,6 +14,7 @@ import {
   tap,
 } from "../game/engine";
 import { loadShowTimes, saveShowTimes } from "../storage/preferences";
+import { changeOrderPanel } from "./changeOrderPanel";
 import { el } from "./dom";
 import { formatDuration } from "./format";
 
@@ -87,8 +89,10 @@ export function mountGameScreen(
   });
   sharedTimerBar.append(...sharedTimerButtons.map((b) => b.button));
 
-  // Bottom bar, out of the swipe area. Change order will join it.
+  // Bottom bar, out of the swipe area.
   const bottomBar = el("nav", "bottom-bar");
+  const changeOrderButton = el("button", "bottom-bar__button", "Change order");
+  changeOrderButton.type = "button";
   const settingsButton = el("button", "bottom-bar__button", "⚙ Settings");
   settingsButton.type = "button";
   const endButton = el("button", "bottom-bar__button", "End game");
@@ -100,10 +104,27 @@ export function mountGameScreen(
     ended = true;
     onEnd(endGame(game, now));
   });
-  bottomBar.append(settingsButton, endButton);
+  bottomBar.append(changeOrderButton, settingsButton, endButton);
+
+  // Change order: opening it pauses the Game; Done applies the new Turn order, which leaves the Game paused.
+  changeOrderButton.addEventListener("click", () => {
+    const now = clock();
+    game = pause(game, now);
+    const players = snapshot(game, now).players.map(({ name, color }) => ({ name, color }));
+    const panel = changeOrderPanel(players, {
+      onDone: (newOrder) => {
+        game = changeOrder(game, newOrder, clock());
+        panel.remove();
+        render();
+      },
+      onCancel: () => panel.remove(),
+    });
+    screen.append(panel);
+    render();
+  });
 
   // Settings: opening it pauses the Game, and closing it leaves the Game as it is.
-  const settings = el("div", "settings-panel");
+  const settings = el("div", "overlay-panel");
   settings.hidden = true;
   settings.setAttribute("role", "dialog");
   settings.setAttribute("aria-label", "Settings");

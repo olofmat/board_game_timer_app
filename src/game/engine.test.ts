@@ -4,11 +4,13 @@ import {
   availableColors,
   canAddPlayer,
   canAddSharedTimer,
+  changeOrder,
   createGame,
   endGame,
   type GameSetup,
   type GameState,
   pause,
+  playersProblem,
   type PlayerSetup,
   pressSharedTimer,
   resume,
@@ -468,6 +470,106 @@ describe("Show times", () => {
   });
 });
 
+describe("Change order", () => {
+  const [ANNA, BO, CLEO] = PLAYERS;
+
+  it("makes the first Player in the new order Current, with the Game paused", () => {
+    let game = tap(createGame(GAME, 0), 0);
+    game = changeOrder(game, [CLEO, ANNA, BO], 5_000);
+    const snap = snapshot(game, 8_000);
+    expect(snap.state).toBe("paused");
+    expect(snap.currentPlayer.name).toBe("Cleo");
+    expect(snap.previousName).toBe("Bo");
+    expect(snap.nextName).toBe("Anna");
+    expect(snap.players.map((p) => p.name)).toEqual(["Cleo", "Anna", "Bo"]);
+    expect(snap.players[1]).toMatchObject({ name: "Anna", timeMs: 5_000, turns: 1 });
+    expect(snap.pausedMs).toBe(3_000);
+  });
+
+  it("starts a new Turn on resume, even when the same Player is first again", () => {
+    let game = tap(createGame(GAME, 0), 0);
+    game = changeOrder(game, [ANNA, CLEO, BO], 5_000);
+    game = tap(game, 6_000);
+    const snap = snapshot(game, 7_000);
+    expect(snap.state).toBe("running");
+    expect(snap.players[0]).toMatchObject({ name: "Anna", timeMs: 6_000, turns: 2 });
+    expect(snap.currentTurnMs).toBe(1_000);
+  });
+
+  it("adds a Player who arrives late, starting with no time and no Turns", () => {
+    const DAN: PlayerSetup = { name: "Dan", color: "yellow" };
+    let game = tap(createGame(GAME, 0), 0);
+    game = changeOrder(game, [ANNA, BO, DAN, CLEO], 5_000);
+    let step = swipeAndHandOver(tap(game, 5_000), "right", 6_000); // Bo
+    step = swipeAndHandOver(step.game, "right", step.now + 1_000); // Dan
+    const snap = snapshot(step.game, step.now + 2_000);
+    expect(snap.currentPlayer).toEqual({ name: "Dan", color: "yellow", timeMs: 2_000, turns: 1 });
+    expect(snap.nextName).toBe("Cleo");
+  });
+
+  it("removes the Current player, who keeps their time and Turns and is marked as having left in the Summary", () => {
+    let game = tap(createGame(GAME, 0), 0);
+    game = changeOrder(game, [BO, CLEO], 5_000); // Anna leaves mid-Turn
+    const paused = snapshot(game, 6_000);
+    expect(paused.currentPlayer.name).toBe("Bo");
+    expect(paused.players.map((p) => p.name)).toEqual(["Bo", "Cleo"]);
+    expect(paused.previousName).toBe("Cleo");
+    expect(paused.gameMs).toBe(5_000);
+
+    game = tap(game, 6_000);
+    const summary = endGame(game, 8_000);
+    expect(summary.players).toEqual([
+      { name: "Anna", color: "red", timeMs: 5_000, turns: 1, averageTurnMs: 5_000, left: true },
+      { name: "Bo", color: "blue", timeMs: 2_000, turns: 1, averageTurnMs: 2_000, left: false },
+      { name: "Cleo", color: "green", timeMs: 0, turns: 0, averageTurnMs: null, left: false },
+    ]);
+    expect(summary.gameMs).toBe(7_000);
+    expect(summary.setup.players).toEqual([BO, CLEO]);
+  });
+
+  it("keeps the Player rules: 2–10 Players with different Colors and names", () => {
+    const game = tap(createGame(GAME, 0), 0);
+    const tooFew = [ANNA];
+    const sameColor = [ANNA, { name: "Dan", color: "red" as const }];
+    expect(playersProblem(tooFew)).toBe("too-few-players");
+    expect(playersProblem(sameColor)).toBe("duplicate-color");
+    expect(playersProblem([ANNA, BO])).toBeNull();
+    expect(() => changeOrder(game, tooFew, 1_000)).toThrow();
+    expect(() => changeOrder(game, sameColor, 1_000)).toThrow();
+
+    const colors = ["red", "blue", "green", "yellow", "purple", "orange", "black", "white", "pink", "teal", "brown"] as const;
+    const eleven = colors.map((color, i) => ({ name: `Player ${i + 1}`, color }));
+    expect(playersProblem(eleven)).toBe("too-many-players");
+    expect(playersProblem(eleven.slice(0, 10))).toBeNull();
+    expect(() => changeOrder(game, eleven, 1_000)).toThrow();
+
+    const sameName = [ANNA, { name: "anna", color: "blue" as const }];
+    expect(playersProblem(sameName)).toBe("duplicate-name");
+    expect(() => changeOrder(game, sameName, 1_000)).toThrow();
+  });
+
+  it("brings back a removed Player who is added again, with the time they had", () => {
+    let game = tap(createGame(GAME, 0), 0);
+    game = changeOrder(game, [BO, CLEO], 5_000);
+    game = changeOrder(game, [CLEO, ANNA, BO], 6_000);
+    const summary = endGame(game, 7_000);
+    expect(summary.players.find((p) => p.name === "Anna")).toMatchObject({ timeMs: 5_000, turns: 1, left: false });
+    expect(summary.players.filter((p) => p.left)).toEqual([]);
+  });
+
+  it("ends a Shared timer in play: resuming goes to the first Player, as a new Turn", () => {
+    let game = tap(createGame({ players: PLAYERS, sharedTimers: ["fight"] }, 0), 0);
+    game = pressSharedTimer(game, 0, 2_000);
+    game = changeOrder(game, [BO, CLEO, ANNA], 4_000);
+    game = tap(game, 5_000);
+    const snap = snapshot(game, 6_000);
+    expect(snap.state).toBe("running");
+    expect(snap.sharedTimerInPlay).toBeNull();
+    expect(snap.sharedTimers[0].timeMs).toBe(2_000);
+    expect(snap.currentPlayer).toMatchObject({ name: "Bo", timeMs: 1_000, turns: 1 });
+  });
+});
+
 describe("End game", () => {
   it("lists Players slowest first with their total time, Turns and average Turn length", () => {
     // Anna 2s, Bo 9s over two Turns, Cleo 4s.
@@ -477,9 +579,9 @@ describe("End game", () => {
     step = swipeAndHandOver(step.game, "left", step.now + 4_000); // Bo again
     const summary = endGame(step.game, step.now + 4_000);
     expect(summary.players).toEqual([
-      { name: "Bo", color: "blue", timeMs: 9_000, turns: 2, averageTurnMs: 4_500 },
-      { name: "Cleo", color: "green", timeMs: 4_000, turns: 1, averageTurnMs: 4_000 },
-      { name: "Anna", color: "red", timeMs: 2_000, turns: 1, averageTurnMs: 2_000 },
+      { name: "Bo", color: "blue", timeMs: 9_000, turns: 2, averageTurnMs: 4_500, left: false },
+      { name: "Cleo", color: "green", timeMs: 4_000, turns: 1, averageTurnMs: 4_000, left: false },
+      { name: "Anna", color: "red", timeMs: 2_000, turns: 1, averageTurnMs: 2_000, left: false },
     ]);
   });
 
@@ -503,7 +605,7 @@ describe("End game", () => {
   it("gives a Player who never had a Turn no average Turn length", () => {
     const summary = endGame(tap(createGame(GAME, 0), 0), 1_000);
     expect(summary.players.find((p) => p.name === "Bo")).toEqual({
-      name: "Bo", color: "blue", timeMs: 0, turns: 0, averageTurnMs: null,
+      name: "Bo", color: "blue", timeMs: 0, turns: 0, averageTurnMs: null, left: false,
     });
   });
 

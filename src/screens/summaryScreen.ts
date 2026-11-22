@@ -11,7 +11,7 @@ function totalRow(label: string, ms: number, className = "summary-total") {
 
 /**
  * Summary screen after End game: Players slowest first with total time,
- * Turns and average Turn length, then Shared timers, Swiping time, Paused
+ * Turns and average Turn length (Players who left marked as such), then Shared timers, Swiping time, Paused
  * time and Game time. Not kept once the next Game starts.
  */
 export function mountSummaryScreen(
@@ -35,6 +35,7 @@ export function mountSummaryScreen(
     const swatch = el("span", "summary-swatch");
     swatch.style.background = colorStyle(player.color).fill;
     nameCell.append(swatch, player.name);
+    if (player.left) nameCell.append(el("span", "summary-left", " (left)"));
     row.append(
       nameCell,
       el("td", "summary-time", formatDuration(player.timeMs)),

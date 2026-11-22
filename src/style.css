@@ -191,16 +191,18 @@ body {
 }
 
 .bottom-bar__button {
+  flex: 1;
   border: none;
   border-radius: 10px;
-  padding: 12px 18px;
+  padding: 12px 8px;
+  white-space: nowrap;
   background: #3a3a42;
   font-weight: 600;
   cursor: pointer;
 }
 
-/* Settings: a panel over the Game screen, which stays mounted underneath. */
-.settings-panel {
+/* Settings and Change order: panels over the Game screen, which stays mounted underneath. */
+.overlay-panel {
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -211,11 +213,17 @@ body {
   background: var(--bg);
 }
 
-.settings-panel[hidden] {
+.overlay-panel--scroll {
+  overflow-y: auto;
+  gap: 0;
+  padding-bottom: 0;
+}
+
+.overlay-panel[hidden] {
   display: none;
 }
 
-.settings-panel h1 {
+.overlay-panel h1 {
   margin: 0 0 8px;
   font-size: 1.5rem;
 }
@@ -233,7 +241,7 @@ body {
   height: 22px;
 }
 
-.settings-panel .secondary-button {
+.overlay-panel .secondary-button {
   margin-top: auto;
 }
 
@@ -532,6 +540,11 @@ button {
   border: 1px solid rgb(255 255 255 / 0.35);
   margin-right: 8px;
   vertical-align: -1px;
+}
+
+.summary-left {
+  font-size: 0.9rem;
+  opacity: 0.6;
 }
 
 .summary-time,
