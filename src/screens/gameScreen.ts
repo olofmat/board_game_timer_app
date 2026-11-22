@@ -17,7 +17,7 @@ import { keepScreenAwake } from "../platform/wakeLock";
 import { loadShowTimes, saveShowTimes } from "../storage/preferences";
 import { changeOrderPanel } from "./changeOrderPanel";
 import { el } from "./dom";
-import { formatDuration } from "./format";
+import { formatTotalAndPart } from "./format";
 
 /** Minimum horizontal travel (px) for a gesture to count as a swipe. */
 const SWIPE_MIN_PX = 50;
@@ -84,9 +84,10 @@ function clockIcon(): SVGSVGElement {
  * with 3–4 so the small buttons stay readable.
  */
 function sharedTimerTimes(timer: SharedTimerSnapshot, inPlay: boolean, buttonCount: number): string {
-  const total = formatDuration(timer.timeMs);
+  // Rounded together with the stretch, so the total ticks in step with it even when the stretch is hidden.
+  const { total, part } = formatTotalAndPart(timer.timeMs, inPlay ? timer.stretchMs : 0);
   if (buttonCount > MAX_SHARED_TIMERS_SHOWING_STRETCH || !inPlay) return total;
-  return `${total} · now ${formatDuration(timer.stretchMs)}`;
+  return `${total} · now ${part}`;
 }
 
 /**
@@ -246,7 +247,8 @@ export function mountGameScreen(
     previous.textContent = snap.previousName;
     next.textContent = snap.nextName;
     playerTimes.hidden = !showTimes;
-    playerTimes.textContent = `Total ${formatDuration(snap.currentPlayer.timeMs)} · Turn ${formatDuration(snap.currentTurnMs)}`;
+    const times = formatTotalAndPart(snap.currentPlayer.timeMs, snap.currentTurnMs);
+    playerTimes.textContent = `Total ${times.total} · Turn ${times.part}`;
     sharedTimerButtons.forEach(({ button, times }, i) => {
       const inPlay = snap.sharedTimerInPlay === i;
       const running = inPlay && snap.state === "shared-timer";
