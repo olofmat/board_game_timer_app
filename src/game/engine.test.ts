@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   ACTIVATION_DELAY_MS,
+  availableColors,
+  canAddPlayer,
   createGame,
   type GameState,
   type PlayerSetup,
+  setupProblem,
   snapshot,
   swipe,
   type SwipeDirection,
@@ -20,6 +23,50 @@ const PLAYERS: PlayerSetup[] = [
   { name: "Bo", color: "blue" },
   { name: "Cleo", color: "green" },
 ];
+
+describe("Game setup", () => {
+  const players = (count: number): PlayerSetup[] =>
+    (["red", "blue", "green", "yellow", "purple", "orange", "black", "white", "pink", "teal", "brown"] as const)
+      .slice(0, count)
+      .map((color, i) => ({ name: `Player ${i + 1}`, color }));
+
+  it("needs at least 2 Players", () => {
+    expect(setupProblem(players(1))).toBe("too-few-players");
+    expect(() => createGame(players(1), 0)).toThrow();
+    expect(setupProblem(players(2))).toBeNull();
+  });
+
+  it("allows at most 10 Players", () => {
+    expect(setupProblem(players(10))).toBeNull();
+    expect(canAddPlayer(players(9))).toBe(true);
+    expect(canAddPlayer(players(10))).toBe(false);
+    expect(setupProblem(players(11))).toBe("too-many-players");
+    expect(() => createGame(players(11), 0)).toThrow();
+  });
+
+  it("needs every Player to have a different Color", () => {
+    const sameColor: PlayerSetup[] = [
+      { name: "Anna", color: "red" },
+      { name: "Bo", color: "blue" },
+      { name: "Cleo", color: "red" },
+    ];
+    expect(setupProblem(sameColor)).toBe("duplicate-color");
+    expect(() => createGame(sameColor, 0)).toThrow();
+  });
+
+  it("offers a Player only the Colors no other Player in the Game has taken", () => {
+    const setup: PlayerSetup[] = [
+      { name: "Anna", color: "red" },
+      { name: "Bo", color: "blue" },
+    ];
+    expect(availableColors(setup)).toEqual([
+      "green", "yellow", "purple", "orange", "black", "white", "pink", "teal", "brown", "grey",
+    ]);
+    expect(availableColors(setup, 1)).toEqual([
+      "blue", "green", "yellow", "purple", "orange", "black", "white", "pink", "teal", "brown", "grey",
+    ]);
+  });
+});
 
 describe("a new Game", () => {
   it("opens paused on the first Player", () => {

@@ -5,7 +5,7 @@
  * Terms follow GLOSSARY.md.
  */
 
-import type { ColorName } from "./colors";
+import { COLORS, type ColorName } from "./colors";
 
 /** Length of the Activation delay. */
 export const ACTIVATION_DELAY_MS = 300;
@@ -54,7 +54,38 @@ export interface Snapshot {
   gameMs: number;
 }
 
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 10;
+
+/** Why a Game can't be created from this setup. */
+export type SetupProblem = "too-few-players" | "too-many-players" | "duplicate-color";
+
+/** Check a setup before creating a Game from it; null means it is valid. */
+export function setupProblem(players: PlayerSetup[]): SetupProblem | null {
+  if (players.length < MIN_PLAYERS) return "too-few-players";
+  if (players.length > MAX_PLAYERS) return "too-many-players";
+  if (new Set(players.map((p) => p.color)).size < players.length) return "duplicate-color";
+  return null;
+}
+
+/** Whether another Player can join this setup. */
+export function canAddPlayer(players: PlayerSetup[]): boolean {
+  return players.length < MAX_PLAYERS;
+}
+
+/**
+ * Colors no other Player in the setup has taken, in palette order. With
+ * `forIndex`, that Player's own Color counts as available.
+ */
+export function availableColors(players: PlayerSetup[], forIndex?: number): ColorName[] {
+  const taken = new Set(players.filter((_, i) => i !== forIndex).map((p) => p.color));
+  return (Object.keys(COLORS) as ColorName[]).filter((c) => !taken.has(c));
+}
+
+/** Create a Game from a valid setup, opening paused on the first Player. Throws on an invalid setup. */
 export function createGame(players: PlayerSetup[], now: number): GameState {
+  const problem = setupProblem(players);
+  if (problem) throw new Error(`Invalid Game setup: ${problem}`);
   return {
     players: players.map(({ name, color }) => ({ name, color, timeMs: 0, turns: 0 })),
     currentIndex: 0,
