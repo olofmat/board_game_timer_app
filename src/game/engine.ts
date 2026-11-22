@@ -58,14 +58,20 @@ export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 10;
 
 /** Why a Game can't be created from this setup. */
-export type SetupProblem = "too-few-players" | "too-many-players" | "duplicate-color";
+export type SetupProblem = "too-few-players" | "too-many-players" | "duplicate-color" | "duplicate-name";
 
 /** Check a setup before creating a Game from it; null means it is valid. */
 export function setupProblem(players: PlayerSetup[]): SetupProblem | null {
   if (players.length < MIN_PLAYERS) return "too-few-players";
   if (players.length > MAX_PLAYERS) return "too-many-players";
   if (new Set(players.map((p) => p.color)).size < players.length) return "duplicate-color";
+  if (new Set(players.map((p) => p.name.toLowerCase())).size < players.length) return "duplicate-name";
   return null;
+}
+
+/** Whether a Player with this name (ignoring case) is already in the setup. */
+export function hasPlayerNamed(players: PlayerSetup[], name: string): boolean {
+  return players.some((p) => p.name.toLowerCase() === name.toLowerCase());
 }
 
 /** Whether another Player can join this setup. */

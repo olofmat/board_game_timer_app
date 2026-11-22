@@ -9,7 +9,7 @@ One play-through, from Start to End game, with a fixed set of Players and Shared
 _Avoid_: Session, match, round
 
 **Player**:
-A person taking turns in a Game. Each Player has a name and a Color unique within the Game. A Player removed mid-Game keeps their recorded time and Turns.
+A person taking turns in a Game. Each Player has a name and a Color, both unique within the Game (names ignoring case). A Player removed mid-Game keeps their recorded time and Turns.
 _Avoid_: User, participant
 
 **Shared timer**:

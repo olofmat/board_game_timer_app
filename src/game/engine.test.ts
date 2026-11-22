@@ -54,6 +54,15 @@ describe("Game setup", () => {
     expect(() => createGame(sameColor, 0)).toThrow();
   });
 
+  it("needs every Player to have a different name, ignoring case", () => {
+    const sameName: PlayerSetup[] = [
+      { name: "Anna", color: "red" },
+      { name: "anna", color: "blue" },
+    ];
+    expect(setupProblem(sameName)).toBe("duplicate-name");
+    expect(() => createGame(sameName, 0)).toThrow();
+  });
+
   it("offers a Player only the Colors no other Player in the Game has taken", () => {
     const setup: PlayerSetup[] = [
       { name: "Anna", color: "red" },

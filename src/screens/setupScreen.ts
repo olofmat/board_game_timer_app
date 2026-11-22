@@ -2,6 +2,7 @@ import { COLORS, type ColorName, colorStyle } from "../game/colors";
 import {
   availableColors,
   canAddPlayer,
+  hasPlayerNamed,
   MAX_PLAYERS,
   MIN_PLAYERS,
   type PlayerSetup,
@@ -16,6 +17,7 @@ const PROBLEM_HINTS: Record<SetupProblem, string> = {
   "too-few-players": `Add at least ${MIN_PLAYERS} Players to start.`,
   "too-many-players": `A Game has at most ${MAX_PLAYERS} Players.`,
   "duplicate-color": "Each Player needs a different Color.",
+  "duplicate-name": "Each Player needs a different name.",
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) {
@@ -74,8 +76,7 @@ export function mountSetupScreen(
   screen.append(header, playersHeading, playerList, addForm, savedHeading, savedList, footer);
   root.replaceChildren(screen);
 
-  /** Two Players with the same name would be indistinguishable on screen, so the screen avoids it. */
-  const isInGame = (name: string) => players.some((p) => p.name.toLowerCase() === name.toLowerCase());
+  const isInGame = (name: string) => hasPlayerNamed(players, name);
   const canAdd = (name: string) => name !== "" && !isInGame(name) && canAddPlayer(players);
 
   /** Add a Player with the first Color nobody has taken; tap their swatch to change it. */
