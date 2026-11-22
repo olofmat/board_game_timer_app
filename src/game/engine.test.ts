@@ -626,6 +626,29 @@ describe("engine state", () => {
     expect(snapshot(restored, 9_000)).toEqual(snapshot(game, 9_000));
   });
 
+  it("round-trips a Game with removed Players and a paused Shared timer", () => {
+    let game = tap(createGame({ players: PLAYERS, sharedTimers: ["fight"] }, 0), 0);
+    game = changeOrder(game, [PLAYERS[1], PLAYERS[2]], 3_000);
+    game = pressSharedTimer(game, 0, 4_000);
+    game = pause(game, 6_000);
+    const restored = JSON.parse(JSON.stringify(game)) as GameState;
+    expect(snapshot(restored, 9_000)).toEqual(snapshot(game, 9_000));
+    expect(endGame(restored, 9_000)).toEqual(endGame(game, 9_000));
+  });
+
+  it("closing the app pauses the Game at that moment: time while closed is Paused time", () => {
+    let game = tap(createGame(GAME, 0), 0);
+    game = pause(game, 5_000); // app hidden
+    const restored = JSON.parse(JSON.stringify(game)) as GameState;
+    const reopened = snapshot(restored, 3_600_000);
+    expect(reopened.state).toBe("paused");
+    expect(reopened.players[0]).toMatchObject({ timeMs: 5_000, turns: 1 });
+    expect(reopened.pausedMs).toBe(3_595_000);
+    expect(reopened.gameMs).toBe(5_000);
+    const resumed = snapshot(tap(restored, 3_600_000), 3_601_000);
+    expect(resumed.players[0]).toMatchObject({ timeMs: 6_000, turns: 1 });
+  });
+
   it("round-trips while a Shared timer runs, crediting time since to that Shared timer", () => {
     let game = tap(createGame({ players: PLAYERS, sharedTimers: ["fight"] }, 0), 0);
     game = pressSharedTimer(game, 0, 2_000);

@@ -54,7 +54,7 @@ A stretch of a Player's clock running, starting at a Handover to a different Pla
 Time spent inside Activation delays, including ones started while paused. Belongs to no Player or Shared timer but is part of Game time.
 
 **Paused time**:
-Time while the Game is paused. Shown in the Summary but not part of Game time.
+Time while the Game is paused, including while the app is closed or hidden (which pauses the Game). Shown in the Summary but not part of Game time.
 
 **Game time**:
 The sum of all Players' time, all Shared timers' time, and Swiping time.

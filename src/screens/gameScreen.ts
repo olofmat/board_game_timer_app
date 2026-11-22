@@ -13,6 +13,7 @@ import {
   type SwipeDirection,
   tap,
 } from "../game/engine";
+import { keepScreenAwake } from "../platform/wakeLock";
 import { loadShowTimes, saveShowTimes } from "../storage/preferences";
 import { changeOrderPanel } from "./changeOrderPanel";
 import { el } from "./dom";
@@ -24,6 +25,8 @@ const SWIPE_MIN_PX = 50;
 const TAP_MAX_PX = 12;
 /** With Show times on, Shared timer buttons show their current stretch too only up to this many buttons. */
 const MAX_SHARED_TIMERS_SHOWING_STRETCH = 2;
+/** How often the running Game is saved even without a command. */
+const HEARTBEAT_MS = 5_000;
 
 type Gesture = { kind: "tap" } | { kind: "swipe"; direction: SwipeDirection } | null;
 
@@ -55,11 +58,22 @@ function sharedTimerTimes(timer: SharedTimerSnapshot, inPlay: boolean, buttonCou
 export function mountGameScreen(
   root: HTMLElement,
   initial: GameState,
-  onEnd: (summary: Summary) => void,
+  handlers: {
+    /** Called with the state and the time after every command, and every few seconds while the screen is open. */
+    onChange: (game: GameState, now: number) => void;
+    onEnd: (summary: Summary) => void;
+  },
   clock: () => number = Date.now,
 ) {
   let game = initial;
   let ended = false;
+
+  /** Take the result of an engine command: keep it, report it for saving and show it. */
+  function applyCommand(next: GameState) {
+    game = next;
+    handlers.onChange(game, clock());
+    render();
+  }
   let showTimes = loadShowTimes();
 
   const area = el("div", "player-area");
@@ -82,8 +96,7 @@ export function mountGameScreen(
     const times = el("span", "shared-timer__times");
     button.append(el("span", "shared-timer__name", sharedTimerName), times);
     button.addEventListener("click", () => {
-      game = pressSharedTimer(game, index, clock());
-      render();
+      applyCommand(pressSharedTimer(game, index, clock()));
     });
     return { button, times };
   });
@@ -101,26 +114,24 @@ export function mountGameScreen(
     // The Game ends when End game is pressed, not when the question is answered.
     const now = clock();
     if (!confirm("End the Game? Are you sure?")) return;
-    ended = true;
-    onEnd(endGame(game, now));
+    stop();
+    handlers.onEnd(endGame(game, now));
   });
   bottomBar.append(changeOrderButton, settingsButton, endButton);
 
   // Change order: opening it pauses the Game; Done applies the new Turn order, which leaves the Game paused.
   changeOrderButton.addEventListener("click", () => {
     const now = clock();
-    game = pause(game, now);
+    applyCommand(pause(game, now));
     const players = snapshot(game, now).players.map(({ name, color }) => ({ name, color }));
     const panel = changeOrderPanel(players, {
       onDone: (newOrder) => {
-        game = changeOrder(game, newOrder, clock());
         panel.remove();
-        render();
+        applyCommand(changeOrder(game, newOrder, clock()));
       },
       onCancel: () => panel.remove(),
     });
     screen.append(panel);
-    render();
   });
 
   // Settings: opening it pauses the Game, and closing it leaves the Game as it is.
@@ -139,15 +150,13 @@ export function mountGameScreen(
   settings.append(el("h1", undefined, "Settings"), pauseButton, showTimesLabel, done);
 
   settingsButton.addEventListener("click", () => {
-    game = pause(game, clock());
     showTimesBox.checked = showTimes;
     settings.hidden = false;
-    render();
+    applyCommand(pause(game, clock()));
   });
   pauseButton.addEventListener("click", () => {
     const now = clock();
-    game = snapshot(game, now).state === "paused" ? resume(game, now) : pause(game, now);
-    render();
+    applyCommand(snapshot(game, now).state === "paused" ? resume(game, now) : pause(game, now));
   });
   showTimesBox.addEventListener("change", () => {
     showTimes = showTimesBox.checked;
@@ -176,8 +185,7 @@ export function mountGameScreen(
     start = null;
     if (!gesture) return;
     const now = clock();
-    game = gesture.kind === "tap" ? tap(game, now) : swipe(game, gesture.direction, now);
-    render();
+    applyCommand(gesture.kind === "tap" ? tap(game, now) : swipe(game, gesture.direction, now));
   });
 
   function render() {
@@ -201,6 +209,26 @@ export function mountGameScreen(
       times.textContent = sharedTimerTimes(snap.sharedTimers[i], inPlay, sharedTimerButtons.length);
     });
     pauseButton.textContent = snap.state === "paused" ? "Resume" : "Pause";
+  }
+
+  // Closing or hiding the app pauses the Game at that moment, so time while it is closed is Paused time.
+  const pauseWhenHidden = () => {
+    if (document.visibilityState === "hidden") applyCommand(pause(game, clock()));
+  };
+  const pauseOnPageHide = () => applyCommand(pause(game, clock()));
+  document.addEventListener("visibilitychange", pauseWhenHidden);
+  window.addEventListener("pagehide", pauseOnPageHide);
+  // Saving now and then keeps the last-known-open moment fresh in case the browser kills the app unannounced.
+  const heartbeat = setInterval(() => handlers.onChange(game, clock()), HEARTBEAT_MS);
+  const releaseWakeLock = keepScreenAwake();
+
+  /** Leave the Game screen: stop rendering, saving and holding the screen awake. */
+  function stop() {
+    ended = true;
+    document.removeEventListener("visibilitychange", pauseWhenHidden);
+    window.removeEventListener("pagehide", pauseOnPageHide);
+    clearInterval(heartbeat);
+    releaseWakeLock();
   }
 
   // The engine resolves the Handover lazily, so re-render every frame.

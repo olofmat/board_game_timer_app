@@ -1,0 +1,3 @@
+# Pause the Game when the app is closed
+
+When the app is hidden or closed mid-Game, the Game pauses at that moment, and time while it is closed is Paused time. This replaces the original plan (user story 64 in #1) of crediting the closed time to whatever was running: a phone locked or switched to another app during a Game is far more often a break than play continuing, and wrongly charging a Player is worse than a tap to resume. If the browser kills the app without warning, the restored Game is paused at the last moment it was saved, which the running Game screen refreshes every few seconds. Decided in #9.
