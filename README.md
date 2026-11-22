@@ -23,6 +23,12 @@ Open the app URL in the phone's browser, then:
 
 The app then opens full screen from the home screen icon and works offline. Updates arrive automatically: after a deploy, the next time the app is opened with a connection it fetches the new version (reopen it once more if you still see the old one).
 
+## Versions and What's new
+
+The Home screen shows the running version, e.g. `v1.2.0 · 3f2a9c1` (version and commit). Tap it to see the full list of changes.
+
+To release a change players should hear about, add an entry at the top of `CHANGELOG` in `src/changelog.ts` and push. That entry's number is the app's version. A new feature raises the middle number (1.2.0 → 1.3.0), a fix only the last (1.2.0 → 1.2.1). After the update loads, the app shows the new entries once, on the Home or Summary screen. Small changes without an entry still deploy, under the same version with a new commit id.
+
 ## Development
 
 Needs Node 22.12 or newer. `.nvmrc` says Node 22: run `nvm install` to get the latest 22.x (an older 22.x such as 22.11 is too old for Vite).

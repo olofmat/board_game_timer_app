@@ -5,15 +5,38 @@ import { mountHomeScreen } from "./screens/homeScreen";
 import { mountSetupScreen } from "./screens/setupScreen";
 import { mountSummaryScreen } from "./screens/summaryScreen";
 import { setSafeToReload, startUpdates } from "./platform/updates";
+import { APP_VERSION, CHANGELOG, releasesSince } from "./changelog";
+import { showWhatsNew } from "./screens/whatsNew";
+import { loadSeenVersion, saveSeenVersion } from "./storage/seenVersion";
 import { clearSavedScreen, loadSavedScreen, saveGame, saveSummary } from "./storage/savedScreen";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("#app element missing from index.html");
 const root = app;
 
+/**
+ * After an update, say once what changed. Only on the Home or Summary screen,
+ * where the update was loaded, never over a running Game or Setup.
+ */
+function announceUpdate() {
+  const seen = loadSeenVersion();
+  if (seen === null) {
+    // A fresh install: nothing has changed for this user.
+    saveSeenVersion(APP_VERSION);
+    return;
+  }
+  const releases = releasesSince(seen);
+  if (releases.length === 0) return;
+  showWhatsNew(`Updated to v${APP_VERSION}`, releases, () => saveSeenVersion(APP_VERSION));
+}
+
 function showHome() {
   setSafeToReload(true);
-  mountHomeScreen(root, () => showSetup());
+  mountHomeScreen(root, {
+    onNewGame: () => showSetup(),
+    onShowVersion: () => showWhatsNew("What's new", CHANGELOG),
+  });
+  announceUpdate();
 }
 
 function showSetup(initial?: GameSetup) {
@@ -36,6 +59,7 @@ function showSummary(summary: Summary) {
     onPlayAgain: () => showSetup(summary.setup),
     onNewGame: () => showSetup(),
   });
+  announceUpdate();
 }
 
 /**

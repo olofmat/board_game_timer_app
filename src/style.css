@@ -330,6 +330,7 @@ button {
 
 /* Home screen */
 .home-screen {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -613,4 +614,67 @@ button {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Version at the bottom of the Home screen; tapping it shows What's new. */
+.version-label {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  opacity: 0.45;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+/* What's new: a sheet over the bottom of the Home or Summary screen. */
+.whats-new {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.whats-new__sheet {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 80%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 16px calc(env(safe-area-inset-bottom) + 16px);
+  border-radius: 16px 16px 0 0;
+  background: #26262c;
+}
+
+.whats-new__sheet h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.whats-new__list {
+  overflow-y: auto;
+}
+
+.whats-new__list h3 {
+  margin: 12px 0 4px;
+  font-size: 0.95rem;
+  opacity: 0.7;
+}
+
+.whats-new__list ul {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.4;
+}
+
+.whats-new__list li + li {
+  margin-top: 6px;
 }
