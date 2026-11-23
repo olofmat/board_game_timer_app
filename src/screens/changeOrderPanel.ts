@@ -8,7 +8,7 @@ const ORDER_HINT = "The first Player becomes the Current player.";
 /**
  * Change order panel over the Game screen: drag Players to a new Turn
  * order, add a late arrival or remove someone who left. Done hands the
- * new Turn order back to be applied; Cancel changes nothing. The 2–10
+ * new Turn order back to be applied; Cancel changes nothing. The 1–10
  * Players and unique Colors rules come from the engine.
  */
 export function changeOrderPanel(

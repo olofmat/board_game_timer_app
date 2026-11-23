@@ -40,10 +40,10 @@ describe("Game setup", () => {
       .slice(0, count)
       .map((color, i) => ({ name: `Player ${i + 1}`, color }));
 
-  it("needs at least 2 Players", () => {
-    expect(setupProblem({ players: players(1), sharedTimers: [] })).toBe("too-few-players");
-    expect(() => createGame({ players: players(1), sharedTimers: [] }, 0)).toThrow();
-    expect(setupProblem({ players: players(2), sharedTimers: [] })).toBeNull();
+  it("needs at least 1 Player", () => {
+    expect(setupProblem({ players: players(0), sharedTimers: [] })).toBe("too-few-players");
+    expect(() => createGame({ players: players(0), sharedTimers: [] }, 0)).toThrow();
+    expect(setupProblem({ players: players(1), sharedTimers: [] })).toBeNull();
   });
 
   it("allows at most 10 Players", () => {
@@ -212,6 +212,38 @@ describe("swipe", () => {
     const snap = snapshot(step.game, step.now + 500);
     expect(snap.players[0]).toMatchObject({ timeMs: 1_500, turns: 2 });
     expect(snap.currentTurnMs).toBe(500);
+  });
+});
+
+describe("playing alone", () => {
+  const SOLO: GameSetup = { players: [{ name: "Anna", color: "red" }], sharedTimers: ["fight", "buying"] };
+
+  it("switches between the one Player and the Shared timers", () => {
+    let game = tap(createGame(SOLO, 0), 0);
+    game = pressSharedTimer(game, 0, 10_000);
+    game = pressSharedTimer(game, 1, 12_000);
+    game = tap(game, 15_000);
+    const snap = snapshot(game, 16_000);
+    expect(snap.state).toBe("running");
+    expect(snap.currentPlayer).toMatchObject({ name: "Anna", timeMs: 11_000, turns: 2 });
+    expect(snap.sharedTimers.map((t) => t.timeMs)).toEqual([2_000, 3_000]);
+    expect(snap.gameMs).toBe(16_000);
+  });
+
+  it("swiping returns to the same Player: from a Shared timer as a new Turn, while running as the same Turn", () => {
+    let game = tap(createGame(SOLO, 0), 0);
+    game = pressSharedTimer(game, 0, 10_000);
+    let step = swipeAndHandOver(game, "next", 12_000);
+    expect(snapshot(step.game, step.now + 1_000)).toMatchObject({
+      state: "running",
+      currentPlayer: { name: "Anna", timeMs: 11_000, turns: 2 },
+      currentTurnMs: 1_000,
+    });
+    step = swipeAndHandOver(step.game, "previous", step.now + 1_000);
+    const snap = snapshot(step.game, step.now + 1_000);
+    expect(snap.currentPlayer).toMatchObject({ name: "Anna", timeMs: 12_000, turns: 2 });
+    expect(snap.currentTurnMs).toBe(2_000);
+    expect(snap.swipingMs).toBe(2 * ACTIVATION_DELAY_MS);
   });
 });
 
@@ -527,12 +559,13 @@ describe("Change order", () => {
     expect(summary.setup.players).toEqual([BO, CLEO]);
   });
 
-  it("keeps the Player rules: 2–10 Players with different Colors and names", () => {
+  it("keeps the Player rules: 1–10 Players with different Colors and names", () => {
     const game = tap(createGame(GAME, 0), 0);
-    const tooFew = [ANNA];
+    const tooFew: PlayerSetup[] = [];
     const sameColor = [ANNA, { name: "Dan", color: "red" as const }];
     expect(playersProblem(tooFew)).toBe("too-few-players");
     expect(playersProblem(sameColor)).toBe("duplicate-color");
+    expect(playersProblem([ANNA])).toBeNull();
     expect(playersProblem([ANNA, BO])).toBeNull();
     expect(() => changeOrder(game, tooFew, 1_000)).toThrow();
     expect(() => changeOrder(game, sameColor, 1_000)).toThrow();

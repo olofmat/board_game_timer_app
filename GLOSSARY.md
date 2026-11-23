@@ -9,7 +9,7 @@ One play-through, from Start to End game, with a fixed set of Players and Shared
 _Avoid_: Session, match, round
 
 **Player**:
-A person taking turns in a Game. Each Player has a name and a Color, both unique within the Game (names ignoring case). A Player removed mid-Game keeps their recorded time and Turns (still part of Game time, and marked as having left in the Summary); adding them back by name continues from that time.
+A person taking turns in a Game, which has 1–10 of them. Each Player has a name and a Color, both unique within the Game (names ignoring case). A Player removed mid-Game keeps their recorded time and Turns (still part of Game time, and marked as having left in the Summary); adding them back by name continues from that time.
 _Avoid_: User, participant
 
 **Shared timer**:
@@ -30,7 +30,7 @@ A Player whose name is used for one Game only and not kept as a Saved name.
 The piece color a Player picks per Game, used to fill the Player area while they are current.
 
 **Turn order**:
-The cyclic sequence of Players (A → B → C → A …) that swipes move through. Can be changed mid-Game; afterwards the first Player in the new order is the Current player.
+The cyclic sequence of Players (A → B → C → A …) that swipes move through. Can be changed mid-Game; afterwards the first Player in the new order is the Current player. A Game can have a single Player (playing alone); then swipes return to that same Player, and play switches only between them and the Shared timers.
 _Avoid_: Seating, rotation
 
 ## Playing

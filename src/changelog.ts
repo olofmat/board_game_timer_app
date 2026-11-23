@@ -14,6 +14,12 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.1.0",
+    changes: [
+      "You can start a Game with just one Player, to time yourself playing alone. Switch between your own clock and the Shared timers.",
+    ],
+  },
+  {
     version: "1.0.0",
     changes: [
       "The version number is shown at the bottom of the Home screen. Tap it to see what's new.",

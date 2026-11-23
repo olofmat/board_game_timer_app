@@ -102,7 +102,7 @@ export interface Summary {
   setup: GameSetup;
 }
 
-export const MIN_PLAYERS = 2;
+export const MIN_PLAYERS = 1;
 export const MAX_PLAYERS = 10;
 export const MAX_SHARED_TIMERS = 4;
 
@@ -124,7 +124,7 @@ export function setupProblem({ players, sharedTimers }: GameSetup): SetupProblem
   return null;
 }
 
-/** Check the Players alone (2–10, different Colors and names), as for a Change order; null means they are valid. */
+/** Check the Players alone (1–10, different Colors and names), as for a Change order; null means they are valid. */
 export function playersProblem(players: PlayerSetup[]): SetupProblem | null {
   if (players.length < MIN_PLAYERS) return "too-few-players";
   if (players.length > MAX_PLAYERS) return "too-many-players";
