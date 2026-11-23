@@ -15,7 +15,7 @@ import { PROBLEM_HINTS } from "./setupHints";
  * New game screen: pick Players from Saved names or type new ones (Guests
  * unless "save" is ticked), give each a Color, drag to set the starting
  * Turn order, add 0–4 Shared timers the same way, then Start. Game rules
- * (2–10 Players, unique Colors, at most 4 Shared timers) come from the
+ * (1–10 Players, unique Colors, at most 4 Shared timers) come from the
  * engine's setup check.
  */
 export function mountSetupScreen(

@@ -244,8 +244,10 @@ export function mountGameScreen(
     area.dataset.state = snap.state;
     nameText.textContent = snap.currentPlayer.name;
     nameRow.classList.toggle("current-name__row--running", snap.state === "running");
-    previous.textContent = snap.previousName;
-    next.textContent = snap.nextName;
+    // Playing alone, both neighbours would be the Current player themselves.
+    const alone = snap.players.length === 1;
+    previous.textContent = alone ? "" : snap.previousName;
+    next.textContent = alone ? "" : snap.nextName;
     playerTimes.hidden = !showTimes;
     const times = formatTotalAndPart(snap.currentPlayer.timeMs, snap.currentTurnMs);
     playerTimes.textContent = `Total ${times.total} · Turn ${times.part}`;
